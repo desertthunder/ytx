@@ -20,6 +20,7 @@ func main() {
 		Usage:   "Transfer playlists between Spotify & YouTube Music",
 		Version: "0.1.0",
 		Commands: []*cli.Command{
+			setupCommand(),
 			authCommand(),
 			spotifyCommand(),
 			apiCommand(),
@@ -29,6 +30,67 @@ func main() {
 
 	if err := app.Run(context.Background(), os.Args); err != nil {
 		logger.Fatal("application error", "error", err)
+	}
+}
+
+func setupCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "setup",
+		Usage: "Initialize database and run migrations",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "config",
+				Aliases: []string{"c"},
+				Usage:   "Path to configuration file",
+				Value:   "config.toml",
+			},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			configPath := cmd.String("config")
+
+			var config *shared.Config
+			if _, err := os.Stat(configPath); err == nil {
+				// Config file exists, load it
+				config, err = shared.LoadConfig(configPath)
+				if err != nil {
+					logger.Warn("failed to load config, using defaults", "error", err)
+					config = shared.DefaultConfig()
+				}
+			} else {
+				// Config file doesn't exist, create it
+				logger.Info("config file not found, creating from template", "path", configPath)
+				if err := shared.CreateConfigFile(configPath); err != nil {
+					logger.Warn("failed to create config file, using defaults", "error", err)
+					config = shared.DefaultConfig()
+				} else {
+					logger.Info("config file created", "path", configPath)
+					// Load the newly created config
+					config, err = shared.LoadConfig(configPath)
+					if err != nil {
+						logger.Warn("failed to load created config, using defaults", "error", err)
+						config = shared.DefaultConfig()
+					}
+				}
+			}
+
+			logger.Info("initializing database", "path", config.Database.Path)
+
+			db, err := shared.NewDatabase(config.Database.Path)
+			if err != nil {
+				return fmt.Errorf("failed to create database: %w", err)
+			}
+			defer db.Close()
+
+			shared.ConfigureDatabase(db, config.Database.MaxOpenConns, config.Database.MaxIdleConns)
+
+			logger.Info("running database migrations")
+			if err := shared.RunMigrations(db); err != nil {
+				return fmt.Errorf("failed to run migrations: %w", err)
+			}
+
+			logger.Info("setup complete", "database", config.Database.Path)
+			return nil
+		},
 	}
 }
 

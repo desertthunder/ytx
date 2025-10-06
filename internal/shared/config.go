@@ -74,3 +74,18 @@ func DefaultConfig() *Config {
 	}
 	return &config
 }
+
+// CreateConfigFile creates a config.toml file at the specified path using the embedded example config.
+func CreateConfigFile(path string) error {
+	// Check if file already exists
+	if _, err := os.Stat(path); err == nil {
+		return fmt.Errorf("config file already exists at %s: %w", path, err)
+	}
+
+	// Write the embedded example config to the file
+	if err := os.WriteFile(path, exampleConf, 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
+}
