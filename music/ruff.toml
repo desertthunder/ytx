@@ -39,9 +39,8 @@ target-version = "py39"
 # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`) codes by default.
 # Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
 # McCabe complexity (`C901`) by default.
-select = ["E4", "E7", "E9", "F", "C90", "PERF", "TRY", "B"]
-ignore = []
-
+select = ["E4", "E7", "E9", "F", "C90", "PERF", "TRY", "B", "W505", "D"]
+ignore = ["D417"]
 fixable = ["ALL"]
 unfixable = []
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
@@ -53,3 +52,6 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = false
 docstring-code-line-length = "dynamic"
+
+[lint.pydocstyle]
+convention = "google"

@@ -12,11 +12,18 @@ dependencies = [
     "fastapi (>=0.118.0,<0.119.0)",
     "ytmusicapi (>=1.11.1,<2.0.0)",
     "httpx (>=0.28.1,<0.29.0)",
-    "uvicorn (>=0.37.0,<0.38.0)"
+    "uvicorn (>=0.37.0,<0.38.0)",
+    "python-multipart (>=0.0.20,<0.1.0)"
 ]
 
+[project.scripts]
+ytmusic-proxy = "cli.__main__:app"
+
 [tool.poetry]
-packages = [{include = "api", from = "src"}]
+packages = [
+    {include = "api", from = "src"},
+    {include = "cli", from = "src"}
+]
 
 
 [tool.poetry.group.dev.dependencies]
