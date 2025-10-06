@@ -1,0 +1,28 @@
+[project]
+name = "api"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Owais Jamil",email = "desertthunder.dev@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "typer (>=0.19.2,<0.20.0)",
+    "fastapi (>=0.118.0,<0.119.0)",
+    "ytmusicapi (>=1.11.1,<2.0.0)",
+    "httpx (>=0.28.1,<0.29.0)",
+    "uvicorn (>=0.37.0,<0.38.0)"
+]
+
+[tool.poetry]
+packages = [{include = "api", from = "src"}]
+
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.13.3"
+pytest = "^8.4.2"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
