@@ -2,6 +2,7 @@
 package shared
 
 import (
+	"encoding/json"
 	"io"
 	"os"
 
@@ -33,4 +34,11 @@ func SetLogLevel(l *log.Logger, ll log.Level) {
 // GenerateID generates a new v4 [uuid.UUID] as a string
 func GenerateID() string {
 	return uuid.New().String()
+}
+
+func MarshalJSON(data any, pretty bool) ([]byte, error) {
+	if pretty {
+		return json.MarshalIndent(data, "", "  ")
+	}
+	return json.Marshal(data)
 }

@@ -150,7 +150,22 @@ type SpotifySimplePlaylist struct {
 	URI         string              `json:"uri"`
 }
 
+type createPlaylistReq struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Public      bool   `json:"public"`
+}
+
+// SpotifySearchResults represents the response from Spotify's search API.
+type SpotifySearchResults struct {
+	Tracks struct {
+		Items []SpotifyTrack `json:"items"`
+		Total int            `json:"total"`
+	} `json:"tracks"`
+}
+
 // SpotifyService implements the Service interface for Spotify API interactions.
+//
 // Uses [oauth2] for authentication and provides methods for playlist and track operations.
 type SpotifyService struct {
 	config      *oauth2.Config
@@ -185,6 +200,8 @@ func NewSpotifyService(credentials map[string]string) (*SpotifyService, error) {
 			"user-read-email",
 			"playlist-read-private",
 			"playlist-read-collaborative",
+			"playlist-modify-public",
+			"playlist-modify-private",
 			"user-library-read",
 		},
 		Endpoint: oauth2.Endpoint{
@@ -242,13 +259,19 @@ func (s *SpotifyService) doRequest(ctx context.Context, method, endpoint string,
 	var err error
 
 	if body != nil {
-		// TODO: handle request body if needed for POST/PUT
-		return fmt.Errorf("%w request body", shared.ErrNotImplemented)
-	}
-
-	req, err = http.NewRequestWithContext(ctx, method, apiURL, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		jsonBody, err := json.Marshal(body)
+		if err != nil {
+			return fmt.Errorf("failed to marshal request body: %w", err)
+		}
+		req, err = http.NewRequestWithContext(ctx, method, apiURL, strings.NewReader(string(jsonBody)))
+		if err != nil {
+			return fmt.Errorf("failed to create request: %w", err)
+		}
+	} else {
+		req, err = http.NewRequestWithContext(ctx, method, apiURL, nil)
+		if err != nil {
+			return fmt.Errorf("failed to create request: %w", err)
+		}
 	}
 
 	req.Header.Set("Authorization", "Bearer "+s.token.AccessToken)
@@ -479,15 +502,89 @@ func (s *SpotifyService) ExportPlaylist(ctx context.Context, playlistID string) 
 	}, nil
 }
 
-// ImportPlaylist imports a playlist into Spotify (stub - requires write permissions).
+// ImportPlaylist imports a playlist into Spotify by creating a new playlist and adding tracks.
+//
+// Requires OAuth scopes: playlist-modify-public, playlist-modify-private
 func (s *SpotifyService) ImportPlaylist(ctx context.Context, playlist *PlaylistExport) (*Playlist, error) {
-	// TODO: implement playlist creation and track addition
-	// Requires additional OAuth scopes: playlist-modify-public, playlist-modify-private
-	return nil, fmt.Errorf("requires playlist creation and track addition: %w", shared.ErrNotImplemented)
+	user, err := s.UserProfile(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user profile: %w", err)
+	}
+
+	createReq := createPlaylistReq{
+		Name:        playlist.Playlist.Name,
+		Description: playlist.Playlist.Description,
+		Public:      playlist.Playlist.Public,
+	}
+
+	var createdPlaylist SpotifyPlaylist
+	endpoint := fmt.Sprintf("/users/%s/playlists", user.ID)
+	if err := s.doRequest(ctx, http.MethodPost, endpoint, createReq, &createdPlaylist); err != nil {
+		return nil, fmt.Errorf("failed to create playlist: %w", err)
+	}
+
+	if len(playlist.Tracks) > 0 {
+		const batchSize = 100
+		for i := 0; i < len(playlist.Tracks); i += batchSize {
+			end := min(i+batchSize, len(playlist.Tracks))
+
+			batch := playlist.Tracks[i:end]
+			trackURIs := make([]string, len(batch))
+			for j, track := range batch {
+				trackURIs[j] = fmt.Sprintf("spotify:track:%s", track.ID)
+			}
+
+			addReq := struct {
+				URIs []string `json:"uris"`
+			}{
+				URIs: trackURIs,
+			}
+
+			addEndpoint := fmt.Sprintf("/playlists/%s/tracks", createdPlaylist.ID)
+			if err := s.doRequest(ctx, http.MethodPost, addEndpoint, addReq, nil); err != nil {
+				return nil, fmt.Errorf("failed to add tracks (batch %d-%d): %w", i, end, err)
+			}
+		}
+	}
+
+	return &Playlist{
+		ID:          createdPlaylist.ID,
+		Name:        createdPlaylist.Name,
+		Description: createdPlaylist.Description,
+		TrackCount:  len(playlist.Tracks),
+		Public:      createdPlaylist.Public,
+	}, nil
 }
 
-// SearchTrack searches for a track by title and artist.
+// SearchTrack searches for a track by title and artist and returns the best match.
 func (s *SpotifyService) SearchTrack(ctx context.Context, title, artist string) (*Track, error) {
-	// TODO: implement search endpoint
-	return nil, fmt.Errorf("requires search endpoint: %w", shared.ErrNotImplemented)
+	query := fmt.Sprintf("track:%s artist:%s", title, artist)
+	endpoint := fmt.Sprintf("/search?q=%s&type=track&limit=1", url.QueryEscape(query))
+
+	var results SpotifySearchResults
+	if err := s.doRequest(ctx, http.MethodGet, endpoint, nil, &results); err != nil {
+		return nil, err
+	}
+
+	if len(results.Tracks.Items) == 0 {
+		return nil, fmt.Errorf("no results found for track '%s' by artist '%s'", title, artist)
+	}
+
+	spotifyTrack := results.Tracks.Items[0]
+	track := &Track{
+		ID:       spotifyTrack.ID,
+		Title:    spotifyTrack.Name,
+		Duration: spotifyTrack.DurationMS / 1000,
+		ISRC:     spotifyTrack.ExternalIDs.ISRC,
+	}
+
+	if len(spotifyTrack.Artists) > 0 {
+		track.Artist = spotifyTrack.Artists[0].Name
+	}
+
+	if spotifyTrack.Album.Name != "" {
+		track.Album = spotifyTrack.Album.Name
+	}
+
+	return track, nil
 }

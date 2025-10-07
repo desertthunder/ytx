@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 
@@ -34,7 +33,7 @@ func (r *Runner) SpotifyPlaylists(ctx context.Context, cmd *cli.Command) error {
 
 	if save {
 		saveFile := "spotify_playlists.json"
-		data, err := marshalJSON(playlists, true)
+		data, err := shared.MarshalJSON(playlists, true)
 		if err != nil {
 			return fmt.Errorf("failed to marshal playlists: %w", err)
 		}
@@ -96,7 +95,7 @@ func (r *Runner) SpotifyExport(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	if outputFile != "" {
-		data, err := marshalJSON(export, true)
+		data, err := shared.MarshalJSON(export, true)
 		if err != nil {
 			return fmt.Errorf("failed to marshal export: %w", err)
 		}
@@ -131,13 +130,6 @@ func (r *Runner) SpotifyExport(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	return nil
-}
-
-func marshalJSON(data any, pretty bool) ([]byte, error) {
-	if pretty {
-		return json.MarshalIndent(data, "", "  ")
-	}
-	return json.Marshal(data)
 }
 
 // spotifyCommand handles Spotify operations (v0.2)

@@ -47,7 +47,7 @@ func main() {
 	app := &cli.Command{
 		Name:     "ytx",
 		Usage:    "Transfer playlists between Spotify & YouTube Music",
-		Version:  "0.5.0",
+		Version:  "0.2.0",
 		Commands: runner.register(),
 	}
 
