@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/desertthunder/song-migrations/internal/services"
 	"github.com/desertthunder/song-migrations/internal/shared"
+	"github.com/desertthunder/song-migrations/internal/tasks"
 	"github.com/urfave/cli/v3"
 )
 
@@ -23,6 +24,7 @@ type Runner struct {
 	httpClient *http.Client
 	logger     *log.Logger
 	output     io.Writer
+	engine     *tasks.PlaylistEngine
 }
 
 // RunnerConfig contains configuration options for creating a Runner.
@@ -51,6 +53,8 @@ func NewRunner(cfg RunnerConfig) *Runner {
 		cfg.HTTPClient = http.DefaultClient
 	}
 
+	engine := tasks.NewPlaylistEngine(cfg.Spotify, cfg.YouTube, cfg.API)
+
 	return &Runner{
 		config:     cfg.Config,
 		spotify:    cfg.Spotify,
@@ -59,6 +63,7 @@ func NewRunner(cfg RunnerConfig) *Runner {
 		httpClient: cfg.HTTPClient,
 		logger:     cfg.Logger,
 		output:     cfg.Output,
+		engine:     engine,
 	}
 }
 

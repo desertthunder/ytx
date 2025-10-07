@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
@@ -41,4 +42,12 @@ func MarshalJSON(data any, pretty bool) ([]byte, error) {
 		return json.MarshalIndent(data, "", "  ")
 	}
 	return json.Marshal(data)
+}
+
+// NormalizeTrackKey creates a normalized key for track comparison.
+//
+// Converts to lowercase and removes extra whitespace for fuzzy matching.
+func NormalizeTrackKey(title, artist string) string {
+	normalized := strings.ToLower(strings.TrimSpace(title)) + "|" + strings.ToLower(strings.TrimSpace(artist))
+	return strings.Join(strings.Fields(normalized), " ")
 }

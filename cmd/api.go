@@ -1,3 +1,4 @@
+// TODO: encapsulate file saving in [shared]
 package main
 
 import (
@@ -7,6 +8,7 @@ import (
 	"os"
 
 	"github.com/desertthunder/song-migrations/internal/shared"
+	"github.com/desertthunder/song-migrations/internal/tasks"
 	"github.com/urfave/cli/v3"
 )
 
@@ -86,107 +88,61 @@ func (r *Runner) APIDump(ctx context.Context, cmd *cli.Command) error {
 	r.logger.Info("dumping API state")
 	r.writePlain("Fetching proxy state...\n\n")
 
-	type DumpData struct {
-		Health         any   `json:"health"`
-		Playlists      any   `json:"playlists,omitempty"`
-		Songs          any   `json:"songs,omitempty"`
-		Albums         any   `json:"albums,omitempty"`
-		Artists        any   `json:"artists,omitempty"`
-		LikedSongs     any   `json:"liked_songs,omitempty"`
-		History        any   `json:"history,omitempty"`
-		UploadedSongs  any   `json:"uploaded_songs,omitempty"`
-		UploadedAlbums any   `json:"uploaded_albums,omitempty"`
-		Errors         []any `json:"errors,omitempty"`
+	progressCh := make(chan tasks.ProgressUpdate, 20)
+	go func() {
+		// TODO: use unicode symbols where possible
+		symbols := map[tasks.Phase]string{
+			tasks.FetchHealth:    "📊",
+			tasks.FetchPlaylists: "📝",
+			tasks.FetchSongs:     "🎵",
+			tasks.FetchAlbums:    "💿",
+			tasks.FetchArtists:   "👨‍🎤",
+			tasks.FetchLiked:     "❤️ ",
+			tasks.FetchHistory:   "📜",
+			tasks.FetchUploads:   "☁️ ",
+		}
+		for update := range progressCh {
+			emoji := symbols[update.Phase]
+			if emoji == "" {
+				emoji = "📥"
+			}
+			r.writePlain("%s %s\n", emoji, update.Message)
+		}
+	}()
+
+	result, err := r.engine.Dump(ctx, progressCh)
+	close(progressCh)
+
+	if err != nil {
+		return err
 	}
 
-	dump := DumpData{
-		Errors: []any{},
-	}
-
-	// Fetch health
-	r.writePlain("📊 Fetching health status...\n")
-	if resp, err := r.api.Get(ctx, "/health"); err == nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		dump.Health = resp.JSONData
-	} else {
-		dump.Errors = append(dump.Errors, map[string]string{"endpoint": "/health", "error": err.Error()})
-		r.logger.Warn("failed to fetch health", "error", err)
-	}
-
-	// Fetch library playlists
-	r.writePlain("📝 Fetching playlists...\n")
-	if resp, err := r.api.Get(ctx, "/api/library/playlists"); err == nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		dump.Playlists = resp.JSONData
-	} else {
-		dump.Errors = append(dump.Errors, map[string]string{"endpoint": "/api/library/playlists", "error": err.Error()})
-		r.logger.Warn("failed to fetch playlists", "error", err)
-	}
-
-	// Fetch library songs
-	r.writePlain("🎵 Fetching songs...\n")
-	if resp, err := r.api.Get(ctx, "/api/library/songs"); err == nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		dump.Songs = resp.JSONData
-	} else {
-		dump.Errors = append(dump.Errors, map[string]string{"endpoint": "/api/library/songs", "error": err.Error()})
-		r.logger.Warn("failed to fetch songs", "error", err)
-	}
-
-	// Fetch library albums
-	r.writePlain("💿 Fetching albums...\n")
-	if resp, err := r.api.Get(ctx, "/api/library/albums"); err == nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		dump.Albums = resp.JSONData
-	} else {
-		dump.Errors = append(dump.Errors, map[string]string{"endpoint": "/api/library/albums", "error": err.Error()})
-		r.logger.Warn("failed to fetch albums", "error", err)
-	}
-
-	// Fetch library artists
-	r.writePlain("👨‍🎤 Fetching artists...\n")
-	if resp, err := r.api.Get(ctx, "/api/library/artists"); err == nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		dump.Artists = resp.JSONData
-	} else {
-		dump.Errors = append(dump.Errors, map[string]string{"endpoint": "/api/library/artists", "error": err.Error()})
-		r.logger.Warn("failed to fetch artists", "error", err)
-	}
-
-	// Fetch liked songs
-	r.writePlain("❤️  Fetching liked songs...\n")
-	if resp, err := r.api.Get(ctx, "/api/library/liked-songs"); err == nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		dump.LikedSongs = resp.JSONData
-	} else {
-		dump.Errors = append(dump.Errors, map[string]string{"endpoint": "/api/library/liked-songs", "error": err.Error()})
-		r.logger.Warn("failed to fetch liked songs", "error", err)
-	}
-
-	// Fetch history
-	r.writePlain("📜 Fetching history...\n")
-	if resp, err := r.api.Get(ctx, "/api/library/history"); err == nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		dump.History = resp.JSONData
-	} else {
-		dump.Errors = append(dump.Errors, map[string]string{"endpoint": "/api/library/history", "error": err.Error()})
-		r.logger.Warn("failed to fetch history", "error", err)
-	}
-
-	// Fetch uploaded songs
-	r.writePlain("☁️  Fetching uploaded songs...\n")
-	if resp, err := r.api.Get(ctx, "/api/uploads/songs"); err == nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		dump.UploadedSongs = resp.JSONData
-	} else {
-		dump.Errors = append(dump.Errors, map[string]string{"endpoint": "/api/uploads/songs", "error": err.Error()})
-		r.logger.Warn("failed to fetch uploaded songs", "error", err)
-	}
-
-	// Fetch uploaded albums
-	r.writePlain("☁️  Fetching uploaded albums...\n")
-	if resp, err := r.api.Get(ctx, "/api/uploads/albums"); err == nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		dump.UploadedAlbums = resp.JSONData
-	} else {
-		dump.Errors = append(dump.Errors, map[string]string{"endpoint": "/api/uploads/albums", "error": err.Error()})
-		r.logger.Warn("failed to fetch uploaded albums", "error", err)
+	for _, endpointErr := range result.Errors {
+		r.logger.Warn("failed to fetch endpoint", "endpoint", endpointErr.Endpoint, "error", endpointErr.Error)
 	}
 
 	r.writePlain("\n✓ Dump complete\n\n")
 
-	// Save to file if requested
+	dump := tasks.DumpData{
+		Health:         result.Health,
+		Playlists:      result.Playlists,
+		Songs:          result.Songs,
+		Albums:         result.Albums,
+		Artists:        result.Artists,
+		LikedSongs:     result.LikedSongs,
+		History:        result.History,
+		UploadedSongs:  result.UploadedSongs,
+		UploadedAlbums: result.UploadedAlbums,
+		Errors:         []any{},
+	}
+
+	for _, endpointErr := range result.Errors {
+		dump.Errors = append(dump.Errors, map[string]string{
+			"endpoint": endpointErr.Endpoint,
+			"error":    endpointErr.Error.Error(),
+		})
+	}
+
 	if save {
 		saveFile := "api_dump.json"
 		data, err := shared.MarshalJSON(dump, true)
@@ -201,11 +157,10 @@ func (r *Runner) APIDump(ctx context.Context, cmd *cli.Command) error {
 		}
 	}
 
-	// Output to console
 	return r.writeJSON(dump, pretty)
 }
 
-// apiCommand handles direct (proxy) API calls (v0.4) and dump (v0.7)
+// apiCommand handles direct (proxy) API calls
 func apiCommand(r *Runner) *cli.Command {
 	return &cli.Command{
 		Name:  "api",
