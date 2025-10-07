@@ -11,12 +11,12 @@ import (
 )
 
 func main() {
+	var spot services.Service
+	var yt services.Service
+
 	logger := shared.NewLogger(nil)
-
-	var spotifyService services.Service
-	var youtubeService services.Service
-
 	config := shared.DefaultConfig()
+
 	if _, err := os.Stat("config.toml"); err == nil {
 		if loadedConfig, err := shared.LoadConfig("config.toml"); err == nil {
 			config = loadedConfig
@@ -29,9 +29,8 @@ func main() {
 			"client_secret": config.Credentials.Spotify.ClientSecret,
 			"redirect_uri":  config.Credentials.Spotify.RedirectURI,
 		}); err == nil {
-			spotifyService = svc
+			spot = svc
 
-			// Authenticate with stored access token if available
 			if config.Credentials.Spotify.AccessToken != "" {
 				ctx := context.Background()
 				if err := svc.Authenticate(ctx, map[string]string{
@@ -45,16 +44,40 @@ func main() {
 		}
 	}
 
-	youtubeService = services.NewYouTubeService(config.Credentials.YouTube.ProxyURL)
-	apiService := services.NewAPIService(config.Credentials.YouTube.ProxyURL, nil)
+	yt = services.NewYouTubeService(config.Credentials.YouTube.ProxyURL)
 
-	runner := NewRunner(RunnerConfig{
+	if config.Credentials.YouTube.HeadersPath != "" {
+		ctx := context.Background()
+		headersPath := config.Credentials.YouTube.HeadersPath
+
+		if absPath, err := shared.AbsolutePath(headersPath); err == nil {
+			headersPath = absPath
+		}
+
+		logger.Info("authenticating YouTube service", "headers_path", headersPath)
+		if err := yt.Authenticate(ctx, map[string]string{"auth_file": headersPath}); err != nil {
+			logger.Error("failed to authenticate YouTube service", "error", err)
+		} else {
+			logger.Info("authenticated YouTube service successfully")
+		}
+	}
+
+	api := services.NewAPIService(config.Credentials.YouTube.ProxyURL, nil)
+	if config.Credentials.YouTube.HeadersPath != "" {
+		if absPath, err := shared.AbsolutePath(config.Credentials.YouTube.HeadersPath); err == nil {
+			api.SetAuthFile(absPath)
+			logger.Info("configured API service with auth file", "headers_path", absPath)
+		}
+	}
+
+	rconf := RunnerConfig{
 		Config:  config,
-		Spotify: spotifyService,
-		YouTube: youtubeService,
-		API:     apiService,
+		Spotify: spot,
+		YouTube: yt,
+		API:     api,
 		Logger:  logger,
-	})
+	}
+	runner := NewRunner(rconf)
 
 	app := &cli.Command{
 		Name:     "ytx",
@@ -71,21 +94,5 @@ func main() {
 		} else {
 			logger.Fatalf("application error: %v", err)
 		}
-	}
-}
-
-func setupCommand(r *Runner) *cli.Command {
-	return &cli.Command{
-		Name:  "setup",
-		Usage: "Initialize database and run migrations",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:    "config",
-				Aliases: []string{"c"},
-				Usage:   "Path to configuration file",
-				Value:   "config.toml",
-			},
-		},
-		Action: r.Setup,
 	}
 }

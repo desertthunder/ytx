@@ -1,30 +1,64 @@
 """FastAPI proxy server for YouTube Music API."""
 
+import json
+import os
+import shutil
+import tempfile
 from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse
+from loguru import logger
 from ytmusicapi import YTMusic
 from ytmusicapi import setup as ytmusic_setup
 
+from .middleware import LoggingMiddleware, configure_logging
 from .models import req, resp
 
+configure_logging()
+
 app = FastAPI(title="YouTube Music Proxy API", version="0.1.0")
+app.add_middleware(LoggingMiddleware)
+
+THeaders = Annotated[str | None, Header()]
 
 
-def get_ytmusic(x_auth_file: Annotated[str | None, Header()] = None) -> YTMusic:
-    """Create YTMusic client instance based on authentication header.
+def get_ytmusic(x_auth_file: THeaders = None, x_auth_data: THeaders = None) -> YTMusic:
+    """Create YTMusic client instance based on authentication.
+
+    Accepts either:
+    - x_auth_file: Path to local auth file on the proxy server
+    - x_auth_data: JSON string containing auth headers (preferred for remote clients)
 
     Args:
-        x_auth_file: Optional path to authentication file (browser.json or oauth.json)
+        x_auth_file: Optional path to authentication file on proxy server
+        x_auth_data: Optional JSON string with auth headers
 
     Returns:
         Authenticated or unauthenticated YTMusic instance
 
     Raises:
-        HTTPException: If auth file path is invalid
+        HTTPException: If auth is invalid
     """
+    if x_auth_data:
+        try:
+            auth_dict = json.loads(x_auth_data)
+            logger.debug(
+                "Loading auth from header data",
+                extra={"keys": list(auth_dict.keys())},
+            )
+            return YTMusic(auth=auth_dict)
+        except json.JSONDecodeError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid JSON in X-Auth-Data header: {e}",
+            ) from e
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=f"Authentication failed: {e}"
+            ) from e
+
     if x_auth_file:
         auth_path = Path(x_auth_file)
         if not auth_path.exists():
@@ -32,6 +66,10 @@ def get_ytmusic(x_auth_file: Annotated[str | None, Header()] = None) -> YTMusic:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Authentication file not found: {x_auth_file}",
             )
+
+        logger.debug(
+            f"Loading auth from file: {x_auth_file}", extra={"file_size": auth_path.stat().st_size}
+        )
         return YTMusic(str(auth_path))
 
     return YTMusic()
@@ -83,24 +121,44 @@ async def health_check() -> resp.HealthCheck:
 
 
 @app.post("/api/setup")
-async def setup_browser(data: req.BrowserSetup) -> resp.Setup:
+async def setup_browser(data: req.BrowserSetup) -> resp.SetupWithContent:
     """Set up browser authentication for YouTube Music.
 
     Accepts raw request headers from browser DevTools and generates browser.json.
+    Returns the generated authentication data for the client to save locally.
 
     Args:
-        data: Browser setup request with headers_raw and filepath
+        data: Browser setup request with headers_raw and optional filepath
 
     Returns:
-        Setup result with filepath location
+        Setup result with generated auth content
     """
     try:
-        ytmusic_setup(filepath=data.filepath, headers_raw=data.headers_raw)
-        return resp.Setup(
-            success=True,
-            filepath=data.filepath,
-            message=f"Successfully created authentication file at {data.filepath}",
-        )
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
+            tmp_path = tmp.name
+
+        try:
+            ytmusic_setup(filepath=tmp_path, headers_raw=data.headers_raw)
+
+            with open(tmp_path) as f:
+                auth_content = json.load(f)
+
+            logger.debug("Generated browser.json", extra={"keys": list(auth_content.keys())})
+
+            if data.filepath:
+                shutil.copy(tmp_path, data.filepath)
+                logger.info(f"Saved browser.json to {data.filepath}")
+
+            return resp.SetupWithContent(
+                success=True,
+                filepath=data.filepath or tmp_path,
+                message="Successfully generated browser authentication",
+                auth_content=auth_content,
+            )
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
     except Exception as exn:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -347,7 +405,6 @@ async def subscribe_artists(data: req.SubscribeArtists, ytmusic: TYtMusic) -> re
     return resp.Success(status="success", result=result)
 
 
-# Uploads Domain
 @app.get("/api/uploads/songs")
 async def get_upload_songs(ytmusic: TYtMusic) -> list[dict[str, Any]]:
     """List user's uploaded songs.
@@ -385,7 +442,6 @@ async def upload_song(file: UploadFile, ytmusic: TYtMusic) -> resp.Success:
     Returns:
         Upload status and entity ID
     """
-    # Save uploaded file temporarily
     temp_path = Path(f"/tmp/{file.filename}")
     try:
         contents = await file.read()

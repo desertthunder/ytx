@@ -6,7 +6,7 @@ import uvicorn
 app = typer.Typer(add_completion=False)
 
 TPort = typer.Option(8080, help="Port to run the server on")
-THost = typer.Option("0.0.0.0", help="Host to bind the server to")
+THost = typer.Option("127.0.0.1", help="Host to bind the server to")
 TReload = typer.Option(False, help="Enable auto-reload for development")
 
 

@@ -252,4 +252,7 @@ tmp/
 
 # Config files with credentials
 config.toml
+# backup
+.config.toml
 *.db
+headers_auth.json

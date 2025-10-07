@@ -1,5 +1,5 @@
 [database]
-path = "./tmp/ytx.db"
+path = "./ytx.db"
 max_open_conns = 10
 max_idle_conns = 5
 
@@ -10,9 +10,9 @@ port = 3000
 [credentials.spotify]
 client_id = "your_spotify_client_id"
 client_secret = "your_spotify_client_secret"
-redirect_uri = "http://localhost:3000/callback"
+redirect_uri = "http://127.0.0.1:3000/callback"
 
 [credentials.youtube]
 api_key = ""
-proxy_url = "http://localhost:8080"
-headers_path = "~/.config/ytx/headers_auth.json"
+proxy_url = "http://127.0.0.1:8080"
+headers_path = "./headers_auth.json"

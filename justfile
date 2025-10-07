@@ -1,7 +1,7 @@
 # Build the ytx CLI binary
 build:
     @echo "Building ytx binary..."
-    go build -o ./tmp/ytx ./cmd/main.go
+    go build -o ./tmp/ytx ./cmd
     @echo "Built: ./tmp/ytx"
 
 # Run all tests
@@ -22,3 +22,8 @@ coverage:
     source music/.venv/bin/activate
     coverage run -m pytest music/tests/
     @coverage html
+
+# Run proxy server
+proxy:
+    @source music/.venv/bin/activate
+    python -m cli

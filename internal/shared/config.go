@@ -54,6 +54,8 @@ type ServerConfig struct {
 }
 
 // LoadConfig reads and parses a TOML configuration file from the specified path.
+//
+// Expands ~ in file paths to the user's home directory.
 func LoadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -64,6 +66,9 @@ func LoadConfig(path string) (*Config, error) {
 	if err := toml.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
+
+	config.Credentials.YouTube.HeadersPath = ExpandPath(config.Credentials.YouTube.HeadersPath)
+	config.Database.Path = ExpandPath(config.Database.Path)
 
 	return &config, nil
 }

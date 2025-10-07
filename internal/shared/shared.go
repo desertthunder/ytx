@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
@@ -21,7 +23,7 @@ func NewLogger(w io.Writer) *log.Logger {
 	if w == nil {
 		w = os.Stderr
 	}
-	opts := log.Options{ReportTimestamp: true, ReportCaller: true}
+	opts := log.Options{ReportTimestamp: true, ReportCaller: true, TimeFormat: time.Kitchen}
 	return log.NewWithOptions(w, opts)
 }
 
@@ -62,4 +64,27 @@ func GenerateState() (string, error) {
 		return "", fmt.Errorf("failed to generate random state: %w", err)
 	}
 	return base64.URLEncoding.EncodeToString(b), nil
+}
+
+// AbsolutePath converts a relative or absolute path to an absolute path.
+func AbsolutePath(p string) (string, error) {
+	if filepath.IsAbs(p) {
+		return p, nil
+	}
+	return filepath.Abs(p)
+}
+
+// ExpandPath expands ~ to home directory in file paths.
+func ExpandPath(p string) string {
+	if p == "" {
+		return p
+	}
+
+	if strings.HasPrefix(p, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, p[2:])
+		}
+	}
+
+	return p
 }

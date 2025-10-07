@@ -17,7 +17,19 @@ From music, run `python -m cli`
 Initialize database and create config.toml
 
 ```sh
-ytx setup --config config.toml
+ytx setup database --config config.toml
+```
+
+Configure YouTube Music authentication from browser headers
+
+```sh
+# From browser DevTools: Copy network request as cURL
+ytx setup youtube --curl "curl 'https://music.youtube.com/...' -H '...'"
+# Or save cURL to a file and reference it
+ytx setup youtube --curl-file auth.sh
+
+# Custom output location
+ytx setup youtube --curl-file auth.sh --output ~/my-auth.json
 ```
 
 #### Auth
@@ -26,9 +38,6 @@ ytx setup --config config.toml
 # Authenticate with Spotify (opens browser, saves tokens to config.toml)
 # Tokens are automatically loaded on subsequent commands
 ytx spotify auth
-
-# Upload headers_auth.json to the proxy server
-ytx auth login /path/to/headers_auth.json
 
 # Check authentication status
 ytx auth status
@@ -58,10 +67,8 @@ ytx transfer run --source "My Spotify Mix" --dest "My YT Mix"
 # Compare playlists
 ytx transfer diff --source-id 123 --dest-id 456 --source-service spotify --dest-service youtube
 
-# GET request to proxy
+# Requests to proxy
 ytx api get /ytmusic/search?q=beatles --json
-
-# POST request with JSON body
 ytx api post /playlist/create -d '{"name":"My Mix"}'
 
 # Full state dump

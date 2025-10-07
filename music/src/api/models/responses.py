@@ -36,3 +36,12 @@ class Setup(BaseModel):
     success: bool
     filepath: str
     message: str
+
+
+class SetupWithContent(BaseModel):
+    """Response model for setup operations that returns auth content."""
+
+    success: bool
+    filepath: str
+    message: str
+    auth_content: dict[str, Any]

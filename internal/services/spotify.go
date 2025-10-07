@@ -419,8 +419,6 @@ func (s *SpotifyService) SeveralArtists(ctx context.Context, artistIDs []string)
 	return nil, shared.ErrNotImplemented
 }
 
-// Service interface implementation
-
 // GetPlaylists retrieves all playlists for the authenticated user.
 func (s *SpotifyService) GetPlaylists(ctx context.Context) ([]models.Playlist, error) {
 	var allPlaylists []models.Playlist

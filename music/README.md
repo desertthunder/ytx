@@ -16,13 +16,20 @@ YouTube Music requires authentication for most operations.
 
 ### Browser Authentication (Recommended)
 
-__Using the API endpoint__:
+__Using ytx CLI__ (easiest):
 
 1. Log into YouTube Music in your browser
 2. Open Developer Tools (F12) → Network tab
 3. Find a POST request to `music.youtube.com/youtubei/v1/browse`
-4. Right-click → Copy → Copy as cURL (or copy request headers)
-5. Extract just the headers and send to the setup endpoint:
+4. Right-click → Copy → Copy as cURL
+5. Run setup command:
+
+```bash
+ytx setup youtube --curl "curl 'https://music.youtube.com/...' -H '...'"
+# or save to file: ytx setup youtube --curl-file auth.sh
+```
+
+__Using the API endpoint directly__:
 
 ```bash
 curl -X POST http://localhost:8080/api/setup \
@@ -32,6 +39,8 @@ curl -X POST http://localhost:8080/api/setup \
     "filepath": "browser.json"
   }'
 ```
+
+The endpoint parses the headers and returns `auth_content` JSON that can be saved as `browser.json`.
 
 __Using ytmusicapi CLI__:
 
@@ -175,62 +184,23 @@ curl "http://localhost:8080/api/search?q=Daft%20Punk&filter=songs"
 
 ## Error Handling
 
-The API returns standard HTTP status codes:
-
-- __200__ - Success
-- __400__ - Bad request (invalid parameters)
-- __401__ - Unauthorized (authentication required)
-- __404__ - Not found
-- __500__ - Internal server error
-- __501__ - Not implemented (stub endpoints)
-
-Error responses include a `detail` field with the error message.
+The API returns standard HTTP status codes and error responses include a `detail` field with the error message.
 
 ## Testing
 
-Run the test suite:
-
-```bash
-pytest tests/
-```
-
-With coverage:
-
-```bash
-pytest tests/ --cov=src
-```
+See the [justfile](../justfile) in the root of the project
 
 ## Development
 
-__Install dev dependencies__:
+__Installation__:
 
 ```bash
 poetry install
 ```
 
-__Run linter & formatter__:
+__Linting & Formatting__:
 
 ```bash
 ruff check .
 ruff format .
 ```
-
-## Project Structure
-
-```sh
-music/
-├── src/
-│   ├── api/
-│   │   ├── app.py          # FastAPI application
-│   │   └── models.py       # Pydantic models
-│   └── cli/
-│       └── __main__.py     # CLI entry point
-├── tests/
-│   └── test_api.py         # API tests
-├── pyproject.toml          # Project dependencies
-└── README.md
-```
-
-## License
-
-MIT
