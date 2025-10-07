@@ -40,10 +40,10 @@ type YouTubeTrack struct {
 	Artists     []YouTubeArtist `json:"artists"`
 	Album       *youtubeAlbum   `json:"album"`
 	Duration    string          `json:"duration"`
-	DurationSec int             `json:"duration_seconds"` // Duration in seconds
+	DurationSec int `json:"duration_seconds"` // Duration in seconds
 	Thumbnails  []YouTubeImage  `json:"thumbnails"`
-	ISRC        string          `json:"isrc,omitempty"`
-	SetVideoID  string          `json:"setVideoId,omitempty"` // For playlist operations
+	ISRC        string          `json:"isrc,omitempty"` // TODO: use ISRC for MusicBrainz matching
+	SetVideoID  string          `json:"setVideoId,omitempty"` // Unique ID of this playlist item, needed for moving/removing playlist items
 }
 
 // YouTubePlaylist represents a playlist from YouTube Music.
@@ -174,6 +174,13 @@ func (y *YouTubeService) GetPlaylist(ctx context.Context, playlistID string) (*P
 		Description string `json:"description"`
 		Privacy     string `json:"privacy"`
 		TrackCount  int    `json:"trackCount"`
+		Author      *struct {
+			Name string `json:"name"`
+			ID   string `json:"id"`
+		} `json:"author,omitempty"`
+		Year            string `json:"year,omitempty"`
+		Duration        string `json:"duration,omitempty"`
+		DurationSeconds int    `json:"duration_seconds,omitempty"`
 	}
 
 	endpoint := fmt.Sprintf("/api/playlists/%s", playlistID)
@@ -201,6 +208,13 @@ func (y *YouTubeService) ExportPlaylist(ctx context.Context, playlistID string) 
 		Privacy     string         `json:"privacy"`
 		TrackCount  int            `json:"trackCount"`
 		Tracks      []YouTubeTrack `json:"tracks"`
+		Author      *struct {
+			Name string `json:"name"`
+			ID   string `json:"id"`
+		} `json:"author,omitempty"`
+		Year            string `json:"year,omitempty"`
+		Duration        string `json:"duration,omitempty"`
+		DurationSeconds int    `json:"duration_seconds,omitempty"`
 	}
 
 	endpoint := fmt.Sprintf("/api/playlists/%s", playlistID)
@@ -347,15 +361,21 @@ func (y *YouTubeService) SearchTrack(ctx context.Context, title, artist string) 
 	endpoint := fmt.Sprintf("/api/search?q=%s&filter=songs", url.QueryEscape(query))
 
 	var results []struct {
-		VideoID string          `json:"videoId"`
-		Title   string          `json:"title"`
-		Artists []YouTubeArtist `json:"artists"`
-		Album   *struct {
+		VideoID        string          `json:"videoId"`
+		Title          string          `json:"title"`
+		Artists        []YouTubeArtist `json:"artists"`
+		Album          *struct {
 			Name string `json:"name"`
 		} `json:"album"`
-		Duration   string `json:"duration"`
-		DurationMS int    `json:"duration_seconds"`
-		ISRC       string `json:"isrc,omitempty"`
+		Duration       string `json:"duration"`
+		DurationSec    int    `json:"duration_seconds"`
+		ISRC           string `json:"isrc,omitempty"`
+		IsExplicit     bool   `json:"isExplicit,omitempty"`
+		ResultType     string `json:"resultType,omitempty"`
+		FeedbackTokens *struct {
+			Add    *string `json:"add"`
+			Remove *string `json:"remove"`
+		} `json:"feedbackTokens,omitempty"`
 	}
 
 	if err := y.doRequest(ctx, http.MethodGet, endpoint, nil, &results); err != nil {
@@ -369,7 +389,7 @@ func (y *YouTubeService) SearchTrack(ctx context.Context, title, artist string) 
 	track := &Track{
 		ID:       result.VideoID,
 		Title:    result.Title,
-		Duration: result.DurationMS,
+		Duration: result.DurationSec,
 		ISRC:     result.ISRC,
 	}
 

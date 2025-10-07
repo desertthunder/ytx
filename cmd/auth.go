@@ -116,3 +116,26 @@ func (r *Runner) AuthStatus(ctx context.Context, cmd *cli.Command) error {
 
 	return fmt.Errorf("%w: status %d", shared.ErrServiceUnavailable, resp.StatusCode)
 }
+
+// authCommand handles authentication operations (v0.1)
+func authCommand(r *Runner) *cli.Command {
+	return &cli.Command{
+		Name:  "auth",
+		Usage: "Manage authentication",
+		Commands: []*cli.Command{
+			{
+				Name:  "login",
+				Usage: "Upload headers_auth.json to FastAPI /auth/upload endpoint",
+				Arguments: []cli.Argument{
+					&cli.StringArg{Name: "path"},
+				},
+				Action: r.AuthLogin,
+			},
+			{
+				Name:   "status",
+				Usage:  "Check current authentication state (calls /health)",
+				Action: r.AuthStatus,
+			},
+		},
+	}
+}

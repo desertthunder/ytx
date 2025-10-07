@@ -138,3 +138,73 @@ func (r *Runner) YTMusicAdd(ctx context.Context, cmd *cli.Command) error {
 
 	return nil
 }
+
+// ytmusicCommand handles YouTube Music operations (v0.5)
+func ytmusicCommand(r *Runner) *cli.Command {
+	return &cli.Command{
+		Name:    "ytmusic",
+		Aliases: []string{"ytm", "yt"},
+		Usage:   "YouTube Music operations",
+		Commands: []*cli.Command{
+			{
+				Name:  "search",
+				Usage: "Search YouTube Music proxy for a track",
+				Arguments: []cli.Argument{
+					&cli.StringArg{
+						Name: "query",
+					},
+				},
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:  "json",
+						Usage: "Output raw JSON",
+					},
+					&cli.BoolFlag{
+						Name:  "pretty",
+						Usage: "Pretty-print output",
+						Value: true,
+					},
+				},
+				Action: r.YTMusicSearch,
+			},
+			{
+				Name:  "create",
+				Usage: "Create playlist on YouTube Music",
+				Arguments: []cli.Argument{
+					&cli.StringArg{
+						Name: "name",
+					},
+				},
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "description",
+						Usage: "Playlist description",
+					},
+					&cli.BoolFlag{
+						Name:  "private",
+						Usage: "Make playlist private",
+						Value: true,
+					},
+				},
+				Action: r.YTMusicCreate,
+			},
+			{
+				Name:  "add",
+				Usage: "Add tracks to an existing playlist",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "playlist-id",
+						Usage:    "Playlist ID to add tracks to",
+						Required: true,
+					},
+					&cli.StringFlag{
+						Name:     "track",
+						Usage:    "Track search query",
+						Required: true,
+					},
+				},
+				Action: r.YTMusicAdd,
+			},
+		},
+	}
+}

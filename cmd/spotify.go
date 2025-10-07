@@ -139,3 +139,68 @@ func marshalJSON(data any, pretty bool) ([]byte, error) {
 	}
 	return json.Marshal(data)
 }
+
+// spotifyCommand handles Spotify operations (v0.2)
+func spotifyCommand(r *Runner) *cli.Command {
+	return &cli.Command{
+		Name:    "spotify",
+		Aliases: []string{"spot"},
+		Usage:   "Spotify playlist operations",
+		Commands: []*cli.Command{
+			{
+				Name:  "playlists",
+				Usage: "List Spotify playlists",
+				Flags: []cli.Flag{
+					&cli.IntFlag{
+						Name:  "limit",
+						Usage: "Maximum number of playlists to return",
+						Value: 50,
+					},
+					&cli.BoolFlag{
+						Name:  "json",
+						Usage: "Output raw JSON",
+					},
+					&cli.BoolFlag{
+						Name:  "pretty",
+						Usage: "Pretty-print output",
+					},
+					&cli.BoolFlag{
+						Name:  "save",
+						Usage: "Save API response locally",
+					},
+				},
+				Action: r.SpotifyPlaylists,
+			},
+			{
+				Name:  "export",
+				Usage: "Export playlist JSON for debugging",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "id",
+						Usage:    "Playlist ID to export",
+						Required: true,
+					},
+					&cli.StringFlag{
+						Name:    "output",
+						Aliases: []string{"o"},
+						Usage:   "Output file path",
+					},
+					&cli.BoolFlag{
+						Name:  "json",
+						Usage: "Output raw JSON",
+					},
+					&cli.BoolFlag{
+						Name:  "pretty",
+						Usage: "Pretty-print output",
+						Value: true,
+					},
+					&cli.BoolFlag{
+						Name:  "save",
+						Usage: "Save API response locally",
+					},
+				},
+				Action: r.SpotifyExport,
+			},
+		},
+	}
+}

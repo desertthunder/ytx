@@ -231,7 +231,7 @@ func (s *SpotifyService) GetAuthURL(state string) string {
 }
 
 // doRequest performs an authenticated HTTP request to the Spotify API.
-func (s *SpotifyService) doRequest(ctx context.Context, method, endpoint string, body interface{}, result interface{}) error {
+func (s *SpotifyService) doRequest(ctx context.Context, method, endpoint string, body any, result any) error {
 	if s.token == nil {
 		return fmt.Errorf("not authenticated: call Authenticate first")
 	}
