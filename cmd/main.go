@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -29,7 +30,13 @@ func main() {
 	}
 
 	if err := app.Run(context.Background(), os.Args); err != nil {
-		logger.Fatal("application error", "error", err)
+		err_ := errors.Unwrap(err)
+		if errors.Is(err_, shared.ErrNotImplemented) {
+			logger.Warn("not implemented")
+			os.Exit(0)
+		} else {
+			logger.Fatalf("application error: %v", err)
+		}
 	}
 }
 
@@ -50,23 +57,18 @@ func setupCommand() *cli.Command {
 
 			var config *shared.Config
 			if _, err := os.Stat(configPath); err == nil {
-				// Config file exists, load it
-				config, err = shared.LoadConfig(configPath)
-				if err != nil {
+				if config, err = shared.LoadConfig(configPath); err != nil {
 					logger.Warn("failed to load config, using defaults", "error", err)
 					config = shared.DefaultConfig()
 				}
 			} else {
-				// Config file doesn't exist, create it
 				logger.Info("config file not found, creating from template", "path", configPath)
 				if err := shared.CreateConfigFile(configPath); err != nil {
 					logger.Warn("failed to create config file, using defaults", "error", err)
 					config = shared.DefaultConfig()
 				} else {
 					logger.Info("config file created", "path", configPath)
-					// Load the newly created config
-					config, err = shared.LoadConfig(configPath)
-					if err != nil {
+					if config, err = shared.LoadConfig(configPath); err != nil {
 						logger.Warn("failed to load created config, using defaults", "error", err)
 						config = shared.DefaultConfig()
 					}
@@ -87,8 +89,7 @@ func setupCommand() *cli.Command {
 			if err := shared.RunMigrations(db); err != nil {
 				return fmt.Errorf("failed to run migrations: %w", err)
 			}
-
-			logger.Info("setup complete", "database", config.Database.Path)
+			logger.Infof("setup complete for database: %v", config.Database.Path)
 			return nil
 		},
 	}
@@ -110,9 +111,7 @@ func authCommand() *cli.Command {
 					}
 					filePath := cmd.Args().Get(0)
 					logger.Info("uploading auth headers", "file", filePath)
-					// TODO: implement auth upload
-					logger.Warn("not implemented")
-					return nil
+					return shared.ErrNotImplemented
 				},
 			},
 			{
@@ -120,9 +119,7 @@ func authCommand() *cli.Command {
 				Usage: "Check current authentication state (calls /health)",
 				Action: func(ctx context.Context, cmd *cli.Command) error {
 					logger.Info("checking auth status")
-					// TODO: implement health check
-					logger.Warn("not implemented")
-					return nil
+					return shared.ErrNotImplemented
 				},
 			},
 		},
@@ -160,9 +157,7 @@ func spotifyCommand() *cli.Command {
 				Action: func(ctx context.Context, cmd *cli.Command) error {
 					limit := cmd.Int("limit")
 					logger.Info("listing spotify playlists", "limit", limit)
-					// TODO: implement playlist listing
-					logger.Warn("not implemented")
-					return nil
+					return shared.ErrNotImplemented
 				},
 			},
 			{
@@ -196,10 +191,8 @@ func spotifyCommand() *cli.Command {
 				Action: func(ctx context.Context, cmd *cli.Command) error {
 					playlistID := cmd.String("id")
 					output := cmd.String("output")
-					logger.Info("exporting spotify playlist", "id", playlistID, "output", output)
-					// TODO: implement playlist export
-					logger.Warn("not implemented")
-					return nil
+					logger.Infof("exporting spotify playlist with id %v and output %v", playlistID, output)
+					return shared.ErrNotImplemented
 				},
 			},
 		},
@@ -228,10 +221,8 @@ func apiCommand() *cli.Command {
 						return fmt.Errorf("expected 1 argument: API path")
 					}
 					path := cmd.Args().Get(0)
-					logger.Info("GET request", "path", path)
-					// TODO: implement GET request
-					logger.Warn("not implemented")
-					return nil
+					logger.Infof("GET request at path %v", path)
+					return shared.ErrNotImplemented
 				},
 			},
 			{
@@ -252,10 +243,8 @@ func apiCommand() *cli.Command {
 					}
 					path := cmd.Args().Get(0)
 					data := cmd.String("data")
-					logger.Info("POST request", "path", path, "data", data)
-					// TODO: implement POST request
-					logger.Warn("not implemented")
-					return nil
+					logger.Infof("POST request at path %v with data %v", path, data)
+					return shared.ErrNotImplemented
 				},
 			},
 		},
@@ -289,9 +278,8 @@ func ytmusicCommand() *cli.Command {
 						return fmt.Errorf("expected 1 argument: search query")
 					}
 					query := cmd.Args().Get(0)
-					logger.Info("searching youtube music", "query", query)
-					// TODO: implement search
-					return nil
+					logger.Infof("searching youtube music with query %v", query)
+					return shared.ErrNotImplemented
 				},
 			},
 			{
@@ -314,9 +302,8 @@ func ytmusicCommand() *cli.Command {
 						return fmt.Errorf("expected 1 argument: playlist name")
 					}
 					name := cmd.Args().Get(0)
-					logger.Info("creating youtube music playlist", "name", name)
-					// TODO: implement playlist creation
-					return nil
+					logger.Infof("creating youtube music playlist %v", name)
+					return shared.ErrNotImplemented
 				},
 			},
 			{
@@ -337,9 +324,8 @@ func ytmusicCommand() *cli.Command {
 				Action: func(ctx context.Context, cmd *cli.Command) error {
 					playlistID := cmd.String("playlist-id")
 					track := cmd.String("track")
-					logger.Info("adding track to playlist", "playlist_id", playlistID, "track", track)
-					// TODO: implement add track
-					return nil
+					logger.Infof("adding track %v to playlist with id %v ", track, playlistID)
+					return shared.ErrNotImplemented
 				},
 			},
 		},

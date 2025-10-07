@@ -11,7 +11,7 @@ import (
 
 // NewLogger creates a new [log.Logger] instance with the specified [io.Writer], with timestamps and caller reporting enabled.
 //
-//	The writer defaults to [os.Stderr]
+// The writer defaults to [os.Stderr]
 func NewLogger(w io.Writer) *log.Logger {
 	if w == nil {
 		w = os.Stderr
