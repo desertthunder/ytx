@@ -4,4 +4,26 @@ import "fmt"
 
 var (
 	ErrNotImplemented = fmt.Errorf("not implemented")
+
+	// Configuration errors
+	ErrMissingConfig      = fmt.Errorf("configuration not found")
+	ErrInvalidConfig      = fmt.Errorf("invalid configuration")
+	ErrMissingCredentials = fmt.Errorf("missing credentials")
+	ErrInvalidCredentials = fmt.Errorf("invalid credentials")
+
+	// Authentication errors
+	ErrAuthFailed       = fmt.Errorf("authentication failed")
+	ErrNotAuthenticated = fmt.Errorf("not authenticated")
+
+	// API and service errors
+	ErrAPIRequest         = fmt.Errorf("API request failed")
+	ErrServiceUnavailable = fmt.Errorf("service unavailable")
+	ErrPlaylistNotFound   = fmt.Errorf("playlist not found")
+	ErrTrackNotFound      = fmt.Errorf("track not found")
+
+	// Input validation errors
+	ErrInvalidInput    = fmt.Errorf("invalid input")
+	ErrMissingArgument = fmt.Errorf("missing required argument")
+	ErrInvalidArgument = fmt.Errorf("invalid argument")
+	ErrInvalidFlag     = fmt.Errorf("invalid flag value")
 )

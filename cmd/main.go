@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/charmbracelet/log"
+	"github.com/desertthunder/song-migrations/internal/services"
 	"github.com/desertthunder/song-migrations/internal/shared"
 	"github.com/urfave/cli/v3"
 )
@@ -16,16 +17,48 @@ var logger *log.Logger
 func main() {
 	logger = shared.NewLogger(nil)
 
+	var spotifyService services.Service
+	var youtubeService services.Service
+
+	config := shared.DefaultConfig()
+	if _, err := os.Stat("config.toml"); err == nil {
+		if loadedConfig, err := shared.LoadConfig("config.toml"); err == nil {
+			config = loadedConfig
+		}
+	}
+
+	if config.Credentials.Spotify.ClientID != "" && config.Credentials.Spotify.ClientSecret != "" {
+		if svc, err := services.NewSpotifyService(map[string]string{
+			"client_id":     config.Credentials.Spotify.ClientID,
+			"client_secret": config.Credentials.Spotify.ClientSecret,
+			"redirect_uri":  config.Credentials.Spotify.RedirectURI,
+		}); err == nil {
+			spotifyService = svc
+		}
+	}
+
+	youtubeService = services.NewYouTubeService(config.Credentials.YouTube.ProxyURL)
+	apiService := services.NewAPIService(config.Credentials.YouTube.ProxyURL, nil)
+
+	runner := NewRunner(RunnerConfig{
+		Config:  config,
+		Spotify: spotifyService,
+		YouTube: youtubeService,
+		API:     apiService,
+		Logger:  logger,
+	})
+
 	app := &cli.Command{
 		Name:    "ytx",
 		Usage:   "Transfer playlists between Spotify & YouTube Music",
-		Version: "0.1.0",
+		Version: "0.5.0",
 		Commands: []*cli.Command{
 			setupCommand(),
-			authCommand(),
-			spotifyCommand(),
-			apiCommand(),
-			ytmusicCommand(),
+			authCommand(runner),
+			spotifyCommand(runner),
+			apiCommand(runner),
+			ytmusicCommand(runner),
+			transferCommand(runner),
 		},
 	}
 
@@ -96,38 +129,30 @@ func setupCommand() *cli.Command {
 }
 
 // authCommand handles authentication operations (v0.1)
-func authCommand() *cli.Command {
+func authCommand(runner *Runner) *cli.Command {
 	return &cli.Command{
 		Name:  "auth",
 		Usage: "Manage authentication",
 		Commands: []*cli.Command{
 			{
-				Name:      "login",
-				Usage:     "Upload headers_auth.json to FastAPI /auth/upload endpoint",
-				ArgsUsage: "<path-to-headers_auth.json>",
-				Action: func(ctx context.Context, cmd *cli.Command) error {
-					if cmd.NArg() != 1 {
-						return fmt.Errorf("expected 1 argument: path to headers_auth.json")
-					}
-					filePath := cmd.Args().Get(0)
-					logger.Info("uploading auth headers", "file", filePath)
-					return shared.ErrNotImplemented
+				Name:  "login",
+				Usage: "Upload headers_auth.json to FastAPI /auth/upload endpoint",
+				Arguments: []cli.Argument{
+					&cli.StringArg{Name: "path"},
 				},
+				Action: runner.AuthLogin,
 			},
 			{
-				Name:  "status",
-				Usage: "Check current authentication state (calls /health)",
-				Action: func(ctx context.Context, cmd *cli.Command) error {
-					logger.Info("checking auth status")
-					return shared.ErrNotImplemented
-				},
+				Name:   "status",
+				Usage:  "Check current authentication state (calls /health)",
+				Action: runner.AuthStatus,
 			},
 		},
 	}
 }
 
 // spotifyCommand handles Spotify operations (v0.2)
-func spotifyCommand() *cli.Command {
+func spotifyCommand(runner *Runner) *cli.Command {
 	return &cli.Command{
 		Name:    "spotify",
 		Aliases: []string{"spot"},
@@ -140,7 +165,8 @@ func spotifyCommand() *cli.Command {
 					&cli.IntFlag{
 						Name:  "limit",
 						Usage: "Maximum number of playlists to return",
-						Value: 50},
+						Value: 50,
+					},
 					&cli.BoolFlag{
 						Name:  "json",
 						Usage: "Output raw JSON",
@@ -154,11 +180,7 @@ func spotifyCommand() *cli.Command {
 						Usage: "Save API response locally",
 					},
 				},
-				Action: func(ctx context.Context, cmd *cli.Command) error {
-					limit := cmd.Int("limit")
-					logger.Info("listing spotify playlists", "limit", limit)
-					return shared.ErrNotImplemented
-				},
+				Action: runner.SpotifyPlaylists,
 			},
 			{
 				Name:  "export",
@@ -188,27 +210,26 @@ func spotifyCommand() *cli.Command {
 						Usage: "Save API response locally",
 					},
 				},
-				Action: func(ctx context.Context, cmd *cli.Command) error {
-					playlistID := cmd.String("id")
-					output := cmd.String("output")
-					logger.Infof("exporting spotify playlist with id %v and output %v", playlistID, output)
-					return shared.ErrNotImplemented
-				},
+				Action: runner.SpotifyExport,
 			},
 		},
 	}
 }
 
 // apiCommand handles direct API calls (v0.4)
-func apiCommand() *cli.Command {
+func apiCommand(runner *Runner) *cli.Command {
 	return &cli.Command{
 		Name:  "api",
 		Usage: "Direct API calls to FastAPI proxy",
 		Commands: []*cli.Command{
 			{
-				Name:      "get",
-				Usage:     "Direct GET to FastAPI proxy, prints raw JSON",
-				ArgsUsage: "<path>",
+				Name:  "get",
+				Usage: "Direct GET to FastAPI proxy, prints raw JSON",
+				Arguments: []cli.Argument{
+					&cli.StringArg{
+						Name: "path",
+					},
+				},
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
 						Name:  "json",
@@ -216,19 +237,16 @@ func apiCommand() *cli.Command {
 						Value: true,
 					},
 				},
-				Action: func(ctx context.Context, cmd *cli.Command) error {
-					if cmd.NArg() != 1 {
-						return fmt.Errorf("expected 1 argument: API path")
-					}
-					path := cmd.Args().Get(0)
-					logger.Infof("GET request at path %v", path)
-					return shared.ErrNotImplemented
-				},
+				Action: runner.APIGet,
 			},
 			{
-				Name:      "post",
-				Usage:     "Direct POST with JSON body",
-				ArgsUsage: "<path>",
+				Name:  "post",
+				Usage: "Direct POST with JSON body",
+				Arguments: []cli.Argument{
+					&cli.StringArg{
+						Name: "path",
+					},
+				},
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:     "data",
@@ -237,31 +255,27 @@ func apiCommand() *cli.Command {
 						Required: true,
 					},
 				},
-				Action: func(ctx context.Context, cmd *cli.Command) error {
-					if cmd.NArg() != 1 {
-						return fmt.Errorf("expected 1 argument: API path")
-					}
-					path := cmd.Args().Get(0)
-					data := cmd.String("data")
-					logger.Infof("POST request at path %v with data %v", path, data)
-					return shared.ErrNotImplemented
-				},
+				Action: runner.APIPost,
 			},
 		},
 	}
 }
 
 // ytmusicCommand handles YouTube Music operations (v0.5)
-func ytmusicCommand() *cli.Command {
+func ytmusicCommand(runner *Runner) *cli.Command {
 	return &cli.Command{
 		Name:    "ytmusic",
 		Aliases: []string{"ytm", "yt"},
 		Usage:   "YouTube Music operations",
 		Commands: []*cli.Command{
 			{
-				Name:      "search",
-				Usage:     "Search YouTube Music proxy for a track",
-				ArgsUsage: "<query>",
+				Name:  "search",
+				Usage: "Search YouTube Music proxy for a track",
+				Arguments: []cli.Argument{
+					&cli.StringArg{
+						Name: "query",
+					},
+				},
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
 						Name:  "json",
@@ -273,19 +287,16 @@ func ytmusicCommand() *cli.Command {
 						Value: true,
 					},
 				},
-				Action: func(ctx context.Context, cmd *cli.Command) error {
-					if cmd.NArg() != 1 {
-						return fmt.Errorf("expected 1 argument: search query")
-					}
-					query := cmd.Args().Get(0)
-					logger.Infof("searching youtube music with query %v", query)
-					return shared.ErrNotImplemented
-				},
+				Action: runner.YTMusicSearch,
 			},
 			{
-				Name:      "create",
-				Usage:     "Create playlist on YouTube Music",
-				ArgsUsage: "<playlist-name>",
+				Name:  "create",
+				Usage: "Create playlist on YouTube Music",
+				Arguments: []cli.Argument{
+					&cli.StringArg{
+						Name: "name",
+					},
+				},
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:  "description",
@@ -297,14 +308,7 @@ func ytmusicCommand() *cli.Command {
 						Value: true,
 					},
 				},
-				Action: func(ctx context.Context, cmd *cli.Command) error {
-					if cmd.NArg() != 1 {
-						return fmt.Errorf("expected 1 argument: playlist name")
-					}
-					name := cmd.Args().Get(0)
-					logger.Infof("creating youtube music playlist %v", name)
-					return shared.ErrNotImplemented
-				},
+				Action: runner.YTMusicCreate,
 			},
 			{
 				Name:  "add",
@@ -321,12 +325,51 @@ func ytmusicCommand() *cli.Command {
 						Required: true,
 					},
 				},
-				Action: func(ctx context.Context, cmd *cli.Command) error {
-					playlistID := cmd.String("playlist-id")
-					track := cmd.String("track")
-					logger.Infof("adding track %v to playlist with id %v ", track, playlistID)
-					return shared.ErrNotImplemented
+				Action: runner.YTMusicAdd,
+			},
+		},
+	}
+}
+
+// transferCommand handles playlist transfer operations (v0.6 stubs)
+func transferCommand(runner *Runner) *cli.Command {
+	return &cli.Command{
+		Name:  "transfer",
+		Usage: "Transfer playlists between services",
+		Commands: []*cli.Command{
+			{
+				Name:  "run",
+				Usage: "Run full Spotify → YouTube Music sync",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "source",
+						Usage:    "Source playlist name or ID",
+						Required: true,
+					},
+					&cli.StringFlag{
+						Name:     "dest",
+						Usage:    "Destination playlist name",
+						Required: true,
+					},
 				},
+				Action: runner.TransferRun,
+			},
+			{
+				Name:  "diff",
+				Usage: "Compare and show missing tracks between two playlists",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "source-id",
+						Usage:    "Source playlist ID",
+						Required: true,
+					},
+					&cli.StringFlag{
+						Name:     "dest-id",
+						Usage:    "Destination playlist ID",
+						Required: true,
+					},
+				},
+				Action: runner.TransferDiff,
 			},
 		},
 	}
