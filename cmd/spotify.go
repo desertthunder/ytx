@@ -3,11 +3,126 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
+	"time"
 
+	"github.com/desertthunder/ytx/internal/server"
+	"github.com/desertthunder/ytx/internal/services"
 	"github.com/desertthunder/ytx/internal/shared"
 	"github.com/urfave/cli/v3"
 )
+
+// SpotifyAuth performs OAuth2 authentication flow for Spotify.
+// Starts a local HTTP server, opens browser for user authorization,
+// exchanges auth code for tokens, and saves tokens to config.
+func (r *Runner) SpotifyAuth(ctx context.Context, cmd *cli.Command) error {
+	configPath := cmd.String("config")
+
+	config := r.config
+	if config == nil {
+		var err error
+		if _, statErr := os.Stat(configPath); statErr == nil {
+			config, err = shared.LoadConfig(configPath)
+			if err != nil {
+				r.logger.Warn("failed to load config, using defaults", "error", err)
+				config = shared.DefaultConfig()
+			}
+		} else {
+			config = shared.DefaultConfig()
+		}
+	}
+
+	if config.Credentials.Spotify.ClientID == "" || config.Credentials.Spotify.ClientSecret == "" {
+		return fmt.Errorf("%w: Spotify client_id and client_secret must be set in config.toml", shared.ErrInvalidArgument)
+	}
+
+	spotifyService, err := services.NewSpotifyService(map[string]string{
+		"client_id":     config.Credentials.Spotify.ClientID,
+		"client_secret": config.Credentials.Spotify.ClientSecret,
+		"redirect_uri":  config.Credentials.Spotify.RedirectURI,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create Spotify service: %w", err)
+	}
+
+	state, err := shared.GenerateState()
+	if err != nil {
+		return fmt.Errorf("failed to generate state token: %w", err)
+	}
+
+	authURL := spotifyService.GetAuthURL(state)
+
+	oauthHandler := server.NewOAuthHandler(spotifyService.GetOAuthConfig(), state)
+	router := server.NewBasicRouter()
+	router.Handler(oauthHandler)
+
+	serverAddr := fmt.Sprintf("%s:%d", config.Server.Host, config.Server.Port)
+	httpServer := &http.Server{
+		Addr:    serverAddr,
+		Handler: router,
+	}
+
+	serverErrors := make(chan error, 1)
+	go func() {
+		r.logger.Info("starting OAuth server", "address", serverAddr)
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			serverErrors <- err
+		}
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	r.writePlain("→ Opening browser for Spotify authorization...\n")
+	if err := shared.OpenBrowser(authURL); err != nil {
+		r.logger.Warn("failed to open browser automatically", "error", err)
+		r.writePlain("\n⚠ Could not open browser automatically.\n")
+		r.writePlain("Please open this URL in your browser:\n%s\n\n", authURL)
+	}
+
+	r.writePlain("→ Waiting for authorization (2 minute timeout)...\n")
+
+	timeout := time.NewTimer(2 * time.Minute)
+	defer timeout.Stop()
+
+	var result server.OAuthResult
+
+	select {
+	case result = <-oauthHandler.Result():
+		// Got result from callback
+	case err := <-serverErrors:
+		return fmt.Errorf("server error: %w", err)
+	case <-timeout.C:
+		return fmt.Errorf("%w: authorization timed out after 2 minutes", shared.ErrTimeout)
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		r.logger.Warn("error shutting down server", "error", err)
+	}
+
+	if result.Error() != nil {
+		return fmt.Errorf("authorization failed: %w", result.Error())
+	}
+
+	if result.Token == nil {
+		return fmt.Errorf("no token received")
+	}
+
+	config.Credentials.Spotify.AccessToken = result.Token.AccessToken
+	config.Credentials.Spotify.RefreshToken = result.Token.RefreshToken
+
+	if err := shared.SaveConfig(configPath, config); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	r.writePlain("\n✓ Authorization successful\n")
+	r.writePlain("✓ Tokens saved to %s\n\n", configPath)
+	r.writePlain("You can now use: ytx spotify playlists\n")
+
+	return nil
+}
 
 // SpotifyPlaylists lists Spotify playlists with optional limit.
 func (r *Runner) SpotifyPlaylists(ctx context.Context, cmd *cli.Command) error {
@@ -139,6 +254,19 @@ func spotifyCommand(r *Runner) *cli.Command {
 		Aliases: []string{"spot"},
 		Usage:   "Spotify playlist operations",
 		Commands: []*cli.Command{
+			{
+				Name:  "auth",
+				Usage: "Authenticate with Spotify using OAuth2",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "config",
+						Aliases: []string{"c"},
+						Usage:   "Path to configuration file",
+						Value:   "config.toml",
+					},
+				},
+				Action: r.SpotifyAuth,
+			},
 			{
 				Name:  "playlists",
 				Usage: "List Spotify playlists",

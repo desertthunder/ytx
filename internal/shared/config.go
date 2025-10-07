@@ -29,6 +29,8 @@ type SpotifyConfig struct {
 	ClientID     string `toml:"client_id"`
 	ClientSecret string `toml:"client_secret"`
 	RedirectURI  string `toml:"redirect_uri"`
+	AccessToken  string `toml:"access_token,omitempty"`
+	RefreshToken string `toml:"refresh_token,omitempty"`
 }
 
 // YouTubeConfig contains YouTube Music API credentials.
@@ -77,14 +79,28 @@ func DefaultConfig() *Config {
 
 // CreateConfigFile creates a config.toml file at the specified path using the embedded example config.
 func CreateConfigFile(path string) error {
-	// Check if file already exists
 	if _, err := os.Stat(path); err == nil {
 		return fmt.Errorf("config file already exists at %s: %w", path, err)
 	}
 
-	// Write the embedded example config to the file
 	if err := os.WriteFile(path, exampleConf, 0644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
+}
+
+// SaveConfig writes a Config struct to a TOML file at the specified path.
+func SaveConfig(path string, config *Config) error {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to open config file for writing: %w", err)
+	}
+	defer file.Close()
+
+	encoder := toml.NewEncoder(file)
+	if err := encoder.Encode(config); err != nil {
+		return fmt.Errorf("failed to encode config: %w", err)
 	}
 
 	return nil

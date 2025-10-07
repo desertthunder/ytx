@@ -30,6 +30,18 @@ func main() {
 			"redirect_uri":  config.Credentials.Spotify.RedirectURI,
 		}); err == nil {
 			spotifyService = svc
+
+			// Authenticate with stored access token if available
+			if config.Credentials.Spotify.AccessToken != "" {
+				ctx := context.Background()
+				if err := svc.Authenticate(ctx, map[string]string{
+					"access_token": config.Credentials.Spotify.AccessToken,
+				}); err != nil {
+					logger.Warn("failed to authenticate with stored token", "error", err)
+				} else {
+					logger.Debug("authenticated with stored access token")
+				}
+			}
 		}
 	}
 

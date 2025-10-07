@@ -2,7 +2,10 @@
 package shared
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -50,4 +53,13 @@ func MarshalJSON(data any, pretty bool) ([]byte, error) {
 func NormalizeTrackKey(title, artist string) string {
 	normalized := strings.ToLower(strings.TrimSpace(title)) + "|" + strings.ToLower(strings.TrimSpace(artist))
 	return strings.Join(strings.Fields(normalized), " ")
+}
+
+// GenerateState generates a cryptographically secure random state token for CSRF protection.
+func GenerateState() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("failed to generate random state: %w", err)
+	}
+	return base64.URLEncoding.EncodeToString(b), nil
 }

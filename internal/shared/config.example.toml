@@ -10,7 +10,7 @@ port = 3000
 [credentials.spotify]
 client_id = "your_spotify_client_id"
 client_secret = "your_spotify_client_secret"
-redirect_uri = "http://localhost:8080/callback"
+redirect_uri = "http://localhost:3000/callback"
 
 [credentials.youtube]
 api_key = ""

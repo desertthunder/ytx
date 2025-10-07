@@ -8,9 +8,74 @@ A FastAPI proxy around [ytmusicapi](https://github.com/sigma67/ytmusicapi) that 
 
 From music, run `python -m cli`
 
-## CLI (Proposed)
+## CLI
 
-### v0.1
+### Usage
+
+#### Setup
+
+Initialize database and create config.toml
+
+```sh
+ytx setup --config config.toml
+```
+
+#### Auth
+
+```sh
+# Authenticate with Spotify (opens browser, saves tokens to config.toml)
+# Tokens are automatically loaded on subsequent commands
+ytx spotify auth
+
+# Upload headers_auth.json to the proxy server
+ytx auth login /path/to/headers_auth.json
+
+# Check authentication status
+ytx auth status
+```
+
+#### Examples
+
+```sh
+# List playlists
+ytx spotify playlists --limit 10 --json --pretty
+
+# Export playlist to JSON
+ytx spotify export --id <playlist-id> --output mylist.json
+
+# Search for tracks
+ytx ytmusic search "Daft Punk Derezzed"
+
+# Create playlist
+ytx ytmusic create "My Cool Mix"
+
+# Add tracks to playlist
+ytx ytmusic add --playlist-id XYZ --track "Song Name"
+
+# Full Spotify → YouTube Music sync
+ytx transfer run --source "My Spotify Mix" --dest "My YT Mix"
+
+# Compare playlists
+ytx transfer diff --source-id 123 --dest-id 456 --source-service spotify --dest-service youtube
+
+# GET request to proxy
+ytx api get /ytmusic/search?q=beatles --json
+
+# POST request with JSON body
+ytx api post /playlist/create -d '{"name":"My Mix"}'
+
+# Full state dump
+ytx api dump
+```
+
+#### Flags
+
+- `--json` / `--pretty`: Toggle JSON output formatting
+- `--save`: Save API responses locally
+
+## ROADMAP
+
+### v0.1 ✓
 
 | Command           | Description                                                         | Example                                        |
 | ----------------- | ------------------------------------------------------------------- | ---------------------------------------------- |
@@ -32,7 +97,7 @@ From music, run `python -m cli`
 | `ytx api get`  | Direct GET to your FastAPI proxy, prints raw JSON | `ytx api get /ytmusic/search?q=beatles --json`         |
 | `ytx api post` | Direct POST with JSON body                        | `ytx api post /playlist/create -d '{"name":"My Mix"}'` |
 
-### v0.2
+### v0.2 ✓
 
 | Command                  | Description                            | Example                                                               |
 | ------------------------ | -------------------------------------- | --------------------------------------------------------------------- |
@@ -64,6 +129,12 @@ From music, run `python -m cli`
 
 ### v0.5
 
+Persistence layer.
+
+See [`models`](/internal/models/models.go) & [`database`](/internal/shared/database.go)
+
+### v0.6
+
 | Command                                                         | Description                                             | Example                                 |
 | --------------------------------------------------------------- | ------------------------------------------------------- | --------------------------------------- |
 | `ytx m[usic]b[rainz] artist "Daft Punk"`                        | Search artists by name                                  | Returns JSON list of matches            |
@@ -72,7 +143,7 @@ From music, run `python -m cli`
 | `ytx m[usic]b[rainz] enrich --input playlist.json`              | Enrich your Spotify playlist JSON with MusicBrainz data | Adds canonical IDs, release dates, etc. |
 | `ytx m[usic]b[rainz] browse --tag electronic`                   | Browse tagged recordings or artists                     | Category browsing                       |
 
-### v0.6
+### v0.7
 
 | Command                                 | Description                    | Example                                   |
 | --------------------------------------- | ------------------------------ | ----------------------------------------- |

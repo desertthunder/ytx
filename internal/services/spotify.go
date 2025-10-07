@@ -17,9 +17,10 @@ import (
 )
 
 const (
-	spotifyAuthURL  = "https://accounts.spotify.com/authorize"
-	spotifyTokenURL = "https://accounts.spotify.com/api/token"
-	spotifyBaseURL  = "https://api.spotify.com/v1"
+	spotifyAuthURL     = "https://accounts.spotify.com/authorize"
+	spotifyTokenURL    = "https://accounts.spotify.com/api/token"
+	spotifyBaseURL     = "https://api.spotify.com/v1"
+	DefaultRedirectURI = "http://localhost:3000/callback"
 )
 
 type followers struct {
@@ -189,7 +190,7 @@ func NewSpotifyService(credentials map[string]string) (*SpotifyService, error) {
 
 	redirectURI, ok := credentials["redirect_uri"]
 	if !ok || redirectURI == "" {
-		redirectURI = "http://localhost:8080/callback"
+		redirectURI = "DefaultRedirectURI"
 	}
 
 	config := &oauth2.Config{
@@ -241,6 +242,11 @@ func (s *SpotifyService) Authenticate(ctx context.Context, credentials map[strin
 
 func (s *SpotifyService) Name() string {
 	return "Spotify"
+}
+
+// GetOAuthConfig returns the OAuth2 config for external use (e.g., OAuth handler).
+func (s *SpotifyService) GetOAuthConfig() *oauth2.Config {
+	return s.config
 }
 
 // GetAuthURL returns the OAuth2 authorization URL for user login.

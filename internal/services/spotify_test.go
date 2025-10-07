@@ -12,7 +12,7 @@ func TestSpotifyService(t *testing.T) {
 			credentials := map[string]string{
 				"client_id":     "test_client_id",
 				"client_secret": "test_client_secret",
-				"redirect_uri":  "http://localhost:8080/callback",
+				"redirect_uri":  "DefaultRedirectURI",
 			}
 
 			srv, err := NewSpotifyService(credentials)
@@ -62,7 +62,7 @@ func TestSpotifyService(t *testing.T) {
 				t.Fatalf("expected no error, got %v", err)
 			}
 
-			if srv.config.RedirectURL != "http://localhost:8080/callback" {
+			if srv.config.RedirectURL != "DefaultRedirectURI" {
 				t.Errorf("expected default redirect URI, got %s", srv.config.RedirectURL)
 			}
 		})
