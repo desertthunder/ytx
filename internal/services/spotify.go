@@ -276,7 +276,7 @@ func (s *SpotifyService) doRequest(ctx context.Context, method, endpoint string,
 // UserProfile retrieves the current authenticated user's profile.
 func (s *SpotifyService) UserProfile(ctx context.Context) (*SpotifyUser, error) {
 	var user SpotifyUser
-	if err := s.doRequest(ctx, "GET", "/me", nil, &user); err != nil {
+	if err := s.doRequest(ctx, http.MethodGet, "/me", nil, &user); err != nil {
 		return nil, err
 	}
 	return &user, nil
@@ -286,7 +286,7 @@ func (s *SpotifyService) UserProfile(ctx context.Context) (*SpotifyUser, error) 
 func (s *SpotifyService) Track(ctx context.Context, trackID string) (*SpotifyTrack, error) {
 	var track SpotifyTrack
 	endpoint := fmt.Sprintf("/tracks/%s", trackID)
-	if err := s.doRequest(ctx, "GET", endpoint, nil, &track); err != nil {
+	if err := s.doRequest(ctx, http.MethodGet, endpoint, nil, &track); err != nil {
 		return nil, err
 	}
 	return &track, nil
@@ -308,7 +308,7 @@ func (s *SpotifyService) SeveralTracks(ctx context.Context, trackIDs []string) (
 		Tracks []SpotifyTrack `json:"tracks"`
 	}
 
-	if err := s.doRequest(ctx, "GET", endpoint, nil, &response); err != nil {
+	if err := s.doRequest(ctx, http.MethodGet, endpoint, nil, &response); err != nil {
 		return nil, err
 	}
 
@@ -327,7 +327,7 @@ func (s *SpotifyService) SavedTracks(ctx context.Context, limit, offset int) (*S
 	endpoint := fmt.Sprintf("/me/tracks?limit=%d&offset=%d", limit, offset)
 
 	var response SpotifyPaginatedTracks
-	if err := s.doRequest(ctx, "GET", endpoint, nil, &response); err != nil {
+	if err := s.doRequest(ctx, http.MethodGet, endpoint, nil, &response); err != nil {
 		return nil, err
 	}
 
@@ -346,7 +346,7 @@ func (s *SpotifyService) UserPlaylists(ctx context.Context, limit, offset int) (
 	endpoint := fmt.Sprintf("/me/playlists?limit=%d&offset=%d", limit, offset)
 
 	var response SpotifyPaginatedPlaylists
-	if err := s.doRequest(ctx, "GET", endpoint, nil, &response); err != nil {
+	if err := s.doRequest(ctx, http.MethodGet, endpoint, nil, &response); err != nil {
 		return nil, err
 	}
 
@@ -358,7 +358,7 @@ func (s *SpotifyService) Playlist(ctx context.Context, playlistID string) (*Spot
 	endpoint := fmt.Sprintf("/playlists/%s", playlistID)
 
 	var playlist SpotifyPlaylist
-	if err := s.doRequest(ctx, "GET", endpoint, nil, &playlist); err != nil {
+	if err := s.doRequest(ctx, http.MethodGet, endpoint, nil, &playlist); err != nil {
 		return nil, err
 	}
 

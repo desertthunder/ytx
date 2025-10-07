@@ -63,9 +63,7 @@ class TestAuthentication:
 
         mock_ytmusic.return_value.get_library_playlists.return_value = []
 
-        res = client.get(
-            "/api/library/playlists", headers={"X-Auth-File": str(auth_file)}
-        )
+        res = client.get("/api/library/playlists", headers={"X-Auth-File": str(auth_file)})
 
         assert res.status_code == 200
         mock_ytmusic.assert_called_once_with(str(auth_file))
@@ -96,9 +94,7 @@ class TestSetupEndpoints:
             assert res.status_code == 200
             assert res.json()["success"] is True
             assert res.json()["filepath"] == filepath
-            mock_setup.assert_called_once_with(
-                filepath=filepath, headers_raw=headers_raw
-            )
+            mock_setup.assert_called_once_with(filepath=filepath, headers_raw=headers_raw)
 
     def test_setup_failure(self):
         """Setup endpoint should return 400 on failure."""
@@ -194,24 +190,18 @@ class TestPlaylistsEndpoints:
         """Add playlist items should add tracks."""
         mock_ytmusic_instance.add_playlist_items.return_value = {"status": "OK"}
 
-        res = client.post(
-            "/api/playlists/PL123/items", json={"video_ids": ["vid1", "vid2"]}
-        )
+        res = client.post("/api/playlists/PL123/items", json={"video_ids": ["vid1", "vid2"]})
 
         assert res.status_code == 200
         assert res.json()["status"] == "success"
-        mock_ytmusic_instance.add_playlist_items.assert_called_once_with(
-            "PL123", ["vid1", "vid2"]
-        )
+        mock_ytmusic_instance.add_playlist_items.assert_called_once_with("PL123", ["vid1", "vid2"])
 
     def test_remove_playlist_items(self, mock_ytmusic_instance):
         """Remove playlist items should remove tracks."""
         mock_ytmusic_instance.remove_playlist_items.return_value = "OK"
 
         videos = [{"videoId": "vid1", "setVideoId": "set1"}]
-        res = client.request(
-            "DELETE", "/api/playlists/PL123/items", json={"videos": videos}
-        )
+        res = client.request("DELETE", "/api/playlists/PL123/items", json={"videos": videos})
 
         assert res.status_code == 200
         assert res.json()["status"] == "success"
@@ -291,9 +281,7 @@ class TestLibraryEndpoints:
         """Subscribe artists should subscribe to artists."""
         mock_ytmusic_instance.subscribe_artists.return_value = "OK"
 
-        res = client.post(
-            "/api/library/artists/subscribe", json={"channel_ids": ["ch1", "ch2"]}
-        )
+        res = client.post("/api/library/artists/subscribe", json={"channel_ids": ["ch1", "ch2"]})
 
         assert res.status_code == 200
         assert res.json()["status"] == "success"
@@ -329,9 +317,7 @@ class TestUploadsEndpoints:
         test_file.write_bytes(b"fake audio data")
 
         with open(test_file, "rb") as f:
-            res = client.post(
-                "/api/uploads/songs", files={"file": ("test.mp3", f, "audio/mpeg")}
-            )
+            res = client.post("/api/uploads/songs", files={"file": ("test.mp3", f, "audio/mpeg")})
 
         assert res.status_code == 200
         assert res.json()["status"] == "success"
@@ -347,6 +333,40 @@ class TestUploadsEndpoints:
         mock_ytmusic_instance.delete_upload_entity.assert_called_once_with("ent123")
 
 
+class TestSearchEndpoint:
+    """Tests for search endpoint."""
+
+    def test_search_basic(self, mock_ytmusic_instance):
+        """Search should return results."""
+        expected = [
+            {"videoId": "vid123", "title": "Test Song", "artists": [{"name": "Test Artist"}]}
+        ]
+        mock_ytmusic_instance.search.return_value = expected
+
+        res = client.get("/api/search?q=test song")
+        assert res.status_code == 200
+        assert res.json() == expected
+        mock_ytmusic_instance.search.assert_called_once_with(query="test song", filter=None)
+
+    def test_search_with_filter(self, mock_ytmusic_instance):
+        """Search with filter should pass filter parameter."""
+        expected = [{"videoId": "vid123", "title": "Test Song"}]
+        mock_ytmusic_instance.search.return_value = expected
+
+        res = client.get("/api/search?q=test&filter=songs")
+        assert res.status_code == 200
+        assert res.json() == expected
+        mock_ytmusic_instance.search.assert_called_once_with(query="test", filter="songs")
+
+    def test_search_error(self, mock_ytmusic_instance):
+        """Search errors should be handled properly."""
+        mock_ytmusic_instance.search.side_effect = Exception("Search failed")
+
+        res = client.get("/api/search?q=test")
+        assert res.status_code == 500
+        assert "internal error" in res.json()["detail"].lower()
+
+
 class TestStubEndpoints:
     """Tests for stub endpoints."""
 
@@ -359,12 +379,6 @@ class TestStubEndpoints:
     def test_explore_stub(self):
         """Explore endpoint should return 501."""
         res = client.get("/api/explore/test")
-        assert res.status_code == 501
-        assert "not implemented" in res.json()["detail"].lower()
-
-    def test_search_stub(self):
-        """Search endpoint should return 501."""
-        res = client.post("/api/search/test")
         assert res.status_code == 501
         assert "not implemented" in res.json()["detail"].lower()
 

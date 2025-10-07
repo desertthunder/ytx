@@ -1,4 +1,4 @@
-# Song Migrator
+# Song Migrator (YTX/`ytx`)
 
 A web service to transfer playlists between Spotify & YouTube music.
 

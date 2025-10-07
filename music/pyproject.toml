@@ -29,6 +29,7 @@ packages = [
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.13.3"
 pytest = "^8.4.2"
+coverage = "^7.10.7"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

@@ -15,3 +15,10 @@ cover:
     go test -v -coverprofile=./tmp/coverage.out ./...
     go tool cover -html=./tmp/coverage.out -o ./tmp/coverage.html
     @echo "Coverage report generated: ./tmp/coverage.html"
+
+# Python coverage
+coverage:
+    @echo "Switching to FastAPI proxy project"
+    source music/.venv/bin/activate
+    coverage run -m pytest music/tests/
+    @coverage html

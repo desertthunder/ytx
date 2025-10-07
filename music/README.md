@@ -113,11 +113,14 @@ Server runs on `http://localhost:8080` by default.
 `POST /api/uploads/songs` - Upload music file (multipart/form-data)
 `DELETE /api/uploads/{entity_id}` - Remove uploaded content
 
+### Search Domain
+
+`GET /api/search` - Search YouTube Music for tracks, albums, artists, etc. (query params: q=query string, filter=songs|videos|albums|artists|playlists)
+
 ### Stub Domains (Not Implemented)
 
 `/api/podcasts/*` - Returns 501
 `/api/explore/*` - Returns 501
-`/api/search/*` - Returns 501
 `/api/browsing/*` - Returns 501
 
 ## Usage Examples
@@ -164,6 +167,12 @@ curl -X POST \
   http://localhost:8080/api/uploads/songs
 ```
 
+__Search for tracks__:
+
+```bash
+curl "http://localhost:8080/api/search?q=Daft%20Punk&filter=songs"
+```
+
 ## Error Handling
 
 The API returns standard HTTP status codes:
@@ -199,15 +208,10 @@ __Install dev dependencies__:
 poetry install
 ```
 
-__Run linter__:
+__Run linter & formatter__:
 
 ```bash
 ruff check .
-```
-
-__Format code__:
-
-```bash
 ruff format .
 ```
 
