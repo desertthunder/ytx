@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/desertthunder/song-migrations/internal/services"
-	"github.com/desertthunder/song-migrations/internal/shared"
-	"github.com/desertthunder/song-migrations/internal/tasks"
+	"github.com/desertthunder/ytx/internal/services"
+	"github.com/desertthunder/ytx/internal/shared"
+	"github.com/desertthunder/ytx/internal/tasks"
 	"github.com/urfave/cli/v3"
 )
 

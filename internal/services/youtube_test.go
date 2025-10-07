@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/desertthunder/ytx/internal/models"
 )
 
 func TestYouTubeService(t *testing.T) {
@@ -267,9 +269,9 @@ func TestYouTubeService(t *testing.T) {
 		svc := NewYouTubeService(server.URL)
 		svc.authFile = "/path/to/auth.json"
 
-		export := &PlaylistExport{
-			Playlist: Playlist{Name: "Import Test", Description: "Test import", Public: true},
-			Tracks:   []Track{{ID: "vid1", Title: "Track 1"}, {ID: "vid2", Title: "Track 2"}},
+		export := &models.PlaylistExport{
+			Playlist: models.Playlist{Name: "Import Test", Description: "Test import", Public: true},
+			Tracks:   []models.Track{{ID: "vid1", Title: "Track 1"}, {ID: "vid2", Title: "Track 2"}},
 		}
 
 		result, err := svc.ImportPlaylist(context.Background(), export)

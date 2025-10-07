@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/desertthunder/song-migrations/internal/shared"
+	"github.com/desertthunder/ytx/internal/shared"
 	"github.com/urfave/cli/v3"
 )
 
@@ -117,7 +117,7 @@ func (r *Runner) AuthStatus(ctx context.Context, cmd *cli.Command) error {
 	return fmt.Errorf("%w: status %d", shared.ErrServiceUnavailable, resp.StatusCode)
 }
 
-// authCommand handles authentication operations (v0.1)
+// authCommand handles authentication operations
 func authCommand(r *Runner) *cli.Command {
 	return &cli.Command{
 		Name:  "auth",

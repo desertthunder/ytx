@@ -23,3 +23,28 @@ type Repository[T Model] interface {
 	Delete(id string) error                    // Delete removes a model from the database by its ID
 	List(criteria map[string]any) ([]T, error) // List retrieves all models matching the given criteria
 }
+
+// Playlist represents a music playlist from any service
+type Playlist struct {
+	ID          string
+	Name        string
+	Description string
+	TrackCount  int
+	Public      bool
+}
+
+// PlaylistExport represents a playlist with all its [Track] objects for migration
+type PlaylistExport struct {
+	Playlist Playlist
+	Tracks   []Track
+}
+
+// Track represents a music track from any service
+type Track struct {
+	ID       string
+	Title    string
+	Artist   string
+	Album    string
+	Duration int    // Duration in seconds
+	ISRC     string // International Standard Recording Code for matching
+}

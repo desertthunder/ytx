@@ -4,35 +4,36 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/desertthunder/song-migrations/internal/services"
-	"github.com/desertthunder/song-migrations/internal/shared"
+	"github.com/desertthunder/ytx/internal/models"
+	"github.com/desertthunder/ytx/internal/services"
+	"github.com/desertthunder/ytx/internal/shared"
 )
 
 // TrackMatchResult represents the result of attempting to match a single track.
 type TrackMatchResult struct {
-	Original services.Track  // Original track from source
-	Matched  *services.Track // Matched track (nil if not found)
-	Error    error           // Error if match failed
+	Original models.Track  // Original track from source
+	Matched  *models.Track // Matched track (nil if not found)
+	Error    error         // Error if match failed
 }
 
 // TransferRunResult contains all data from a full transfer operation.
 type TransferRunResult struct {
-	SourcePlaylist  *services.PlaylistExport // Source playlist with tracks
-	DestPlaylist    *services.Playlist       // Created destination playlist
-	TrackMatches    []TrackMatchResult       // Individual track match results
-	SuccessCount    int                      // Number of successfully matched tracks
-	FailedCount     int                      // Number of failed matches
-	TotalTracks     int                      // Total tracks processed
-	MatchPercentage float64                  // Success rate as percentage
+	SourcePlaylist  *models.PlaylistExport // Source playlist with tracks
+	DestPlaylist    *models.Playlist       // Created destination playlist
+	TrackMatches    []TrackMatchResult     // Individual track match results
+	SuccessCount    int                    // Number of successfully matched tracks
+	FailedCount     int                    // Number of failed matches
+	TotalTracks     int                    // Total tracks processed
+	MatchPercentage float64                // Success rate as percentage
 }
 
 // ComparisonResult contains track comparison details between two playlists.
 type ComparisonResult struct {
-	SourcePlaylist *services.PlaylistExport // Source playlist
-	DestPlaylist   *services.PlaylistExport // Destination playlist
-	MatchedCount   int                      // Tracks found in both
-	MissingInDest  []services.Track         // Tracks in source but not in dest
-	ExtraInDest    []services.Track         // Tracks in dest but not in source
+	SourcePlaylist *models.PlaylistExport // Source playlist
+	DestPlaylist   *models.PlaylistExport // Destination playlist
+	MatchedCount   int                    // Tracks found in both
+	MissingInDest  []models.Track         // Tracks in source but not in dest
+	ExtraInDest    []models.Track         // Tracks in dest but not in source
 }
 
 // TransferDiffResult contains the results of comparing two playlists.
@@ -207,15 +208,15 @@ func (e *PlaylistEngine) Run(ctx context.Context, srcIdOrName, destName string, 
 
 	e.sendProgress(progress, createDestinationUpdate(1, 1))
 
-	matchedTracks := make([]services.Track, 0, successCount)
+	matchedTracks := make([]models.Track, 0, successCount)
 	for _, match := range matches {
 		if match.Matched != nil {
 			matchedTracks = append(matchedTracks, *match.Matched)
 		}
 	}
 
-	destExport := &services.PlaylistExport{
-		Playlist: services.Playlist{
+	destExport := &models.PlaylistExport{
+		Playlist: models.Playlist{
 			Name:        destName,
 			Description: fmt.Sprintf("Migrated from Spotify: %s", srcPl.Playlist.Name),
 			Public:      false,
@@ -257,8 +258,8 @@ func (e *PlaylistEngine) Diff(ctx context.Context, sourceSvc, destSvc services.S
 	result.Comparison.DestPlaylist = destExport
 
 	e.sendProgress(progress, buildDestMapUpdate(1, 2))
-	destTrackMap := make(map[string]services.Track)
-	destISRCMap := make(map[string]services.Track)
+	destTrackMap := make(map[string]models.Track)
+	destISRCMap := make(map[string]models.Track)
 
 	for _, track := range destExport.Tracks {
 		normalizedKey := shared.NormalizeTrackKey(track.Title, track.Artist)
@@ -269,7 +270,7 @@ func (e *PlaylistEngine) Diff(ctx context.Context, sourceSvc, destSvc services.S
 	}
 
 	e.sendProgress(progress, missingTrackUpdate(2, 2))
-	var missingInDest []services.Track
+	var missingInDest []models.Track
 	matchedCount := 0
 
 	for _, srcTrack := range sourceExport.Tracks {
@@ -295,8 +296,8 @@ func (e *PlaylistEngine) Diff(ctx context.Context, sourceSvc, destSvc services.S
 		}
 	}
 
-	sourceTrackMap := make(map[string]services.Track)
-	sourceISRCMap := make(map[string]services.Track)
+	sourceTrackMap := make(map[string]models.Track)
+	sourceISRCMap := make(map[string]models.Track)
 
 	for _, track := range sourceExport.Tracks {
 		normalizedKey := shared.NormalizeTrackKey(track.Title, track.Artist)
@@ -306,7 +307,7 @@ func (e *PlaylistEngine) Diff(ctx context.Context, sourceSvc, destSvc services.S
 		}
 	}
 
-	var extraInDest []services.Track
+	var extraInDest []models.Track
 	for _, destTrack := range destExport.Tracks {
 		matched := false
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/desertthunder/song-migrations/internal/services"
-	"github.com/desertthunder/song-migrations/internal/shared"
+	"github.com/desertthunder/ytx/internal/models"
+	"github.com/desertthunder/ytx/internal/shared"
 	"github.com/urfave/cli/v3"
 )
 
@@ -63,13 +63,13 @@ func (r *Runner) YTMusicCreate(ctx context.Context, cmd *cli.Command) error {
 
 	r.logger.Info("creating youtube music playlist", "name", name, "private", private)
 
-	export := &services.PlaylistExport{
-		Playlist: services.Playlist{
+	export := &models.PlaylistExport{
+		Playlist: models.Playlist{
 			Name:        name,
 			Description: description,
 			Public:      !private,
 		},
-		Tracks: []services.Track{},
+		Tracks: []models.Track{},
 	}
 
 	playlist, err := r.youtube.ImportPlaylist(ctx, export)
@@ -121,9 +121,9 @@ func (r *Runner) YTMusicAdd(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	// FIXME: implement AddTrack API endpoint
-	export := &services.PlaylistExport{
+	export := &models.PlaylistExport{
 		Playlist: *playlist,
-		Tracks:   []services.Track{*track},
+		Tracks:   []models.Track{*track},
 	}
 
 	_, err = r.youtube.ImportPlaylist(ctx, export)

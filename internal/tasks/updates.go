@@ -3,7 +3,7 @@ package tasks
 import (
 	"fmt"
 
-	"github.com/desertthunder/song-migrations/internal/services"
+	"github.com/desertthunder/ytx/internal/models"
 )
 
 // ProgressUpdate represents a progress event during a long-running operation.
@@ -123,7 +123,7 @@ func operationUpdate(endpoint endpointOperation, step int, total int) ProgressUp
 	}
 }
 
-func createPlaylistUpdate(step, total int, pl *services.Playlist) ProgressUpdate {
+func createPlaylistUpdate(step, total int, pl *models.Playlist) ProgressUpdate {
 	return ProgressUpdate{
 		Phase:   CreatePlaylist,
 		Step:    step,
@@ -142,7 +142,7 @@ func createDestinationUpdate(step, total int) ProgressUpdate {
 	}
 }
 
-func searchTracksUpdate(step, total int, tr *services.Track) ProgressUpdate {
+func searchTracksUpdate(step, total int, tr *models.Track) ProgressUpdate {
 	if tr == nil {
 		return ProgressUpdate{
 			Phase:   SearchTracks,
@@ -159,7 +159,7 @@ func searchTracksUpdate(step, total int, tr *services.Track) ProgressUpdate {
 	}
 }
 
-func foundPlaylistUpdate(step, total int, export *services.PlaylistExport) ProgressUpdate {
+func foundPlaylistUpdate(step, total int, export *models.PlaylistExport) ProgressUpdate {
 	return ProgressUpdate{
 		Phase:   FetchSource,
 		Step:    step,

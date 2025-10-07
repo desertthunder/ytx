@@ -11,7 +11,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/desertthunder/song-migrations/internal/shared"
+	"github.com/desertthunder/ytx/internal/models"
+	"github.com/desertthunder/ytx/internal/shared"
 	"golang.org/x/oauth2"
 )
 
@@ -415,8 +416,8 @@ func (s *SpotifyService) SeveralArtists(ctx context.Context, artistIDs []string)
 // Service interface implementation
 
 // GetPlaylists retrieves all playlists for the authenticated user.
-func (s *SpotifyService) GetPlaylists(ctx context.Context) ([]Playlist, error) {
-	var allPlaylists []Playlist
+func (s *SpotifyService) GetPlaylists(ctx context.Context) ([]models.Playlist, error) {
+	var allPlaylists []models.Playlist
 	limit := 50
 	offset := 0
 
@@ -427,7 +428,7 @@ func (s *SpotifyService) GetPlaylists(ctx context.Context) ([]Playlist, error) {
 		}
 
 		for _, sp := range response.Items {
-			allPlaylists = append(allPlaylists, Playlist{
+			allPlaylists = append(allPlaylists, models.Playlist{
 				ID:          sp.ID,
 				Name:        sp.Name,
 				Description: sp.Description,
@@ -446,13 +447,13 @@ func (s *SpotifyService) GetPlaylists(ctx context.Context) ([]Playlist, error) {
 }
 
 // GetPlaylist retrieves a specific playlist by ID.
-func (s *SpotifyService) GetPlaylist(ctx context.Context, playlistID string) (*Playlist, error) {
+func (s *SpotifyService) GetPlaylist(ctx context.Context, playlistID string) (*models.Playlist, error) {
 	sp, err := s.Playlist(ctx, playlistID)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Playlist{
+	return &models.Playlist{
 		ID:          sp.ID,
 		Name:        sp.Name,
 		Description: sp.Description,
@@ -462,13 +463,13 @@ func (s *SpotifyService) GetPlaylist(ctx context.Context, playlistID string) (*P
 }
 
 // ExportPlaylist exports a playlist with all its tracks.
-func (s *SpotifyService) ExportPlaylist(ctx context.Context, playlistID string) (*PlaylistExport, error) {
+func (s *SpotifyService) ExportPlaylist(ctx context.Context, playlistID string) (*models.PlaylistExport, error) {
 	sp, err := s.Playlist(ctx, playlistID)
 	if err != nil {
 		return nil, err
 	}
 
-	playlist := Playlist{
+	playlist := models.Playlist{
 		ID:          sp.ID,
 		Name:        sp.Name,
 		Description: sp.Description,
@@ -476,9 +477,9 @@ func (s *SpotifyService) ExportPlaylist(ctx context.Context, playlistID string) 
 		Public:      sp.Public,
 	}
 
-	var tracks []Track
+	var tracks []models.Track
 	for _, item := range sp.Tracks.Items {
-		track := Track{
+		track := models.Track{
 			ID:       item.Track.ID,
 			Title:    item.Track.Name,
 			Duration: item.Track.DurationMS / 1000,
@@ -496,7 +497,7 @@ func (s *SpotifyService) ExportPlaylist(ctx context.Context, playlistID string) 
 		tracks = append(tracks, track)
 	}
 
-	return &PlaylistExport{
+	return &models.PlaylistExport{
 		Playlist: playlist,
 		Tracks:   tracks,
 	}, nil
@@ -505,7 +506,7 @@ func (s *SpotifyService) ExportPlaylist(ctx context.Context, playlistID string) 
 // ImportPlaylist imports a playlist into Spotify by creating a new playlist and adding tracks.
 //
 // Requires OAuth scopes: playlist-modify-public, playlist-modify-private
-func (s *SpotifyService) ImportPlaylist(ctx context.Context, playlist *PlaylistExport) (*Playlist, error) {
+func (s *SpotifyService) ImportPlaylist(ctx context.Context, playlist *models.PlaylistExport) (*models.Playlist, error) {
 	user, err := s.UserProfile(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user profile: %w", err)
@@ -547,7 +548,7 @@ func (s *SpotifyService) ImportPlaylist(ctx context.Context, playlist *PlaylistE
 		}
 	}
 
-	return &Playlist{
+	return &models.Playlist{
 		ID:          createdPlaylist.ID,
 		Name:        createdPlaylist.Name,
 		Description: createdPlaylist.Description,
@@ -557,7 +558,7 @@ func (s *SpotifyService) ImportPlaylist(ctx context.Context, playlist *PlaylistE
 }
 
 // SearchTrack searches for a track by title and artist and returns the best match.
-func (s *SpotifyService) SearchTrack(ctx context.Context, title, artist string) (*Track, error) {
+func (s *SpotifyService) SearchTrack(ctx context.Context, title, artist string) (*models.Track, error) {
 	query := fmt.Sprintf("track:%s artist:%s", title, artist)
 	endpoint := fmt.Sprintf("/search?q=%s&type=track&limit=1", url.QueryEscape(query))
 
@@ -571,7 +572,7 @@ func (s *SpotifyService) SearchTrack(ctx context.Context, title, artist string) 
 	}
 
 	spotifyTrack := results.Tracks.Items[0]
-	track := &Track{
+	track := &models.Track{
 		ID:       spotifyTrack.ID,
 		Title:    spotifyTrack.Name,
 		Duration: spotifyTrack.DurationMS / 1000,

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/desertthunder/song-migrations/internal/services"
-	"github.com/desertthunder/song-migrations/internal/shared"
-	tu "github.com/desertthunder/song-migrations/internal/testing"
+	"github.com/desertthunder/ytx/internal/services"
+	"github.com/desertthunder/ytx/internal/shared"
+	tu "github.com/desertthunder/ytx/internal/testing"
 )
 
 func TestRunner(t *testing.T) {

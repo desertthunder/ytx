@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/desertthunder/song-migrations/internal/shared"
+	"github.com/desertthunder/ytx/internal/shared"
 	"github.com/urfave/cli/v3"
 )
 

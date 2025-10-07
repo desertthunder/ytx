@@ -7,16 +7,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/desertthunder/song-migrations/internal/services"
-	"github.com/desertthunder/song-migrations/internal/shared"
+	"github.com/desertthunder/ytx/internal/models"
+	"github.com/desertthunder/ytx/internal/services"
+	"github.com/desertthunder/ytx/internal/shared"
 )
 
 type mockService struct {
 	name            string
-	playlists       []services.Playlist
-	playlistExports map[string]*services.PlaylistExport
-	searchResults   map[string]*services.Track
-	importResult    *services.Playlist
+	playlists       []models.Playlist
+	playlistExports map[string]*models.PlaylistExport
+	searchResults   map[string]*models.Track
+	importResult    *models.Playlist
 	authenticateErr error
 	getPlaylistsErr error
 	getPlaylistErr  error
@@ -35,14 +36,14 @@ func (m *mockService) Authenticate(ctx context.Context, credentials map[string]s
 	return m.authenticateErr
 }
 
-func (m *mockService) GetPlaylists(ctx context.Context) ([]services.Playlist, error) {
+func (m *mockService) GetPlaylists(ctx context.Context) ([]models.Playlist, error) {
 	if m.getPlaylistsErr != nil {
 		return nil, m.getPlaylistsErr
 	}
 	return m.playlists, nil
 }
 
-func (m *mockService) GetPlaylist(ctx context.Context, playlistID string) (*services.Playlist, error) {
+func (m *mockService) GetPlaylist(ctx context.Context, playlistID string) (*models.Playlist, error) {
 	if m.getPlaylistErr != nil {
 		return nil, m.getPlaylistErr
 	}
@@ -52,7 +53,7 @@ func (m *mockService) GetPlaylist(ctx context.Context, playlistID string) (*serv
 	return nil, fmt.Errorf("playlist not found")
 }
 
-func (m *mockService) ExportPlaylist(ctx context.Context, playlistID string) (*services.PlaylistExport, error) {
+func (m *mockService) ExportPlaylist(ctx context.Context, playlistID string) (*models.PlaylistExport, error) {
 	m.exportCallCount++
 	if m.exportErr != nil {
 		if m.exportErrOnce && m.exportCallCount > 1 {
@@ -67,14 +68,14 @@ func (m *mockService) ExportPlaylist(ctx context.Context, playlistID string) (*s
 	return nil, fmt.Errorf("playlist not found")
 }
 
-func (m *mockService) ImportPlaylist(ctx context.Context, playlist *services.PlaylistExport) (*services.Playlist, error) {
+func (m *mockService) ImportPlaylist(ctx context.Context, playlist *models.PlaylistExport) (*models.Playlist, error) {
 	if m.importErr != nil {
 		return nil, m.importErr
 	}
 	return m.importResult, nil
 }
 
-func (m *mockService) SearchTrack(ctx context.Context, title, artist string) (*services.Track, error) {
+func (m *mockService) SearchTrack(ctx context.Context, title, artist string) (*models.Track, error) {
 	if m.searchErr != nil {
 		return nil, m.searchErr
 	}
@@ -121,13 +122,13 @@ func TestPlaylistEngine_Run(t *testing.T) {
 			destName: "My YouTube Playlist",
 			spotifyService: &mockService{
 				name: "Spotify",
-				playlistExports: map[string]*services.PlaylistExport{
+				playlistExports: map[string]*models.PlaylistExport{
 					"playlist123": {
-						Playlist: services.Playlist{
+						Playlist: models.Playlist{
 							ID:   "playlist123",
 							Name: "My Spotify Playlist",
 						},
-						Tracks: []services.Track{
+						Tracks: []models.Track{
 							{ID: "track1", Title: "Song 1", Artist: "Artist 1"},
 							{ID: "track2", Title: "Song 2", Artist: "Artist 2"},
 						},
@@ -136,11 +137,11 @@ func TestPlaylistEngine_Run(t *testing.T) {
 			},
 			youtubeService: &mockService{
 				name: "YouTube Music",
-				searchResults: map[string]*services.Track{
+				searchResults: map[string]*models.Track{
 					"Song 1|Artist 1": {ID: "yt1", Title: "Song 1", Artist: "Artist 1"},
 					"Song 2|Artist 2": {ID: "yt2", Title: "Song 2", Artist: "Artist 2"},
 				},
-				importResult: &services.Playlist{
+				importResult: &models.Playlist{
 					ID:         "yt_playlist",
 					Name:       "My YouTube Playlist",
 					TrackCount: 2,
@@ -156,16 +157,16 @@ func TestPlaylistEngine_Run(t *testing.T) {
 			destName: "My YouTube Playlist",
 			spotifyService: &mockService{
 				name: "Spotify",
-				playlists: []services.Playlist{
+				playlists: []models.Playlist{
 					{ID: "playlist123", Name: "My Spotify Playlist"},
 				},
-				playlistExports: map[string]*services.PlaylistExport{
+				playlistExports: map[string]*models.PlaylistExport{
 					"playlist123": {
-						Playlist: services.Playlist{
+						Playlist: models.Playlist{
 							ID:   "playlist123",
 							Name: "My Spotify Playlist",
 						},
-						Tracks: []services.Track{
+						Tracks: []models.Track{
 							{ID: "track1", Title: "Song 1", Artist: "Artist 1"},
 						},
 					},
@@ -175,10 +176,10 @@ func TestPlaylistEngine_Run(t *testing.T) {
 			},
 			youtubeService: &mockService{
 				name: "YouTube Music",
-				searchResults: map[string]*services.Track{
+				searchResults: map[string]*models.Track{
 					"Song 1|Artist 1": {ID: "yt1", Title: "Song 1", Artist: "Artist 1"},
 				},
-				importResult: &services.Playlist{
+				importResult: &models.Playlist{
 					ID:         "yt_playlist",
 					Name:       "My YouTube Playlist",
 					TrackCount: 1,
@@ -194,13 +195,13 @@ func TestPlaylistEngine_Run(t *testing.T) {
 			destName: "My YouTube Playlist",
 			spotifyService: &mockService{
 				name: "Spotify",
-				playlistExports: map[string]*services.PlaylistExport{
+				playlistExports: map[string]*models.PlaylistExport{
 					"playlist123": {
-						Playlist: services.Playlist{
+						Playlist: models.Playlist{
 							ID:   "playlist123",
 							Name: "My Spotify Playlist",
 						},
-						Tracks: []services.Track{
+						Tracks: []models.Track{
 							{ID: "track1", Title: "Song 1", Artist: "Artist 1"},
 							{ID: "track2", Title: "Song 2", Artist: "Artist 2"},
 							{ID: "track3", Title: "Song 3", Artist: "Artist 3"},
@@ -210,12 +211,12 @@ func TestPlaylistEngine_Run(t *testing.T) {
 			},
 			youtubeService: &mockService{
 				name: "YouTube Music",
-				searchResults: map[string]*services.Track{
+				searchResults: map[string]*models.Track{
 					"Song 1|Artist 1": {ID: "yt1", Title: "Song 1", Artist: "Artist 1"},
 					// Song 2 not found
 					"Song 3|Artist 3": {ID: "yt3", Title: "Song 3", Artist: "Artist 3"},
 				},
-				importResult: &services.Playlist{
+				importResult: &models.Playlist{
 					ID:         "yt_playlist",
 					Name:       "My YouTube Playlist",
 					TrackCount: 2,
@@ -231,13 +232,13 @@ func TestPlaylistEngine_Run(t *testing.T) {
 			destName: "My YouTube Playlist",
 			spotifyService: &mockService{
 				name: "Spotify",
-				playlistExports: map[string]*services.PlaylistExport{
+				playlistExports: map[string]*models.PlaylistExport{
 					"playlist123": {
-						Playlist: services.Playlist{
+						Playlist: models.Playlist{
 							ID:   "playlist123",
 							Name: "My Spotify Playlist",
 						},
-						Tracks: []services.Track{
+						Tracks: []models.Track{
 							{ID: "track1", Title: "Song 1", Artist: "Artist 1"},
 						},
 					},
@@ -245,7 +246,7 @@ func TestPlaylistEngine_Run(t *testing.T) {
 			},
 			youtubeService: &mockService{
 				name:          "YouTube Music",
-				searchResults: map[string]*services.Track{},
+				searchResults: map[string]*models.Track{},
 			},
 			wantErr:     true,
 			wantSuccess: 0,
@@ -316,18 +317,18 @@ func TestPlaylistEngine_Run_ServiceErrors(t *testing.T) {
 }
 
 func TestPlaylistEngine_Diff(t *testing.T) {
-	sourceExport := &services.PlaylistExport{
-		Playlist: services.Playlist{ID: "src", Name: "Source"},
-		Tracks: []services.Track{
+	sourceExport := &models.PlaylistExport{
+		Playlist: models.Playlist{ID: "src", Name: "Source"},
+		Tracks: []models.Track{
 			{ID: "1", Title: "Track 1", Artist: "Artist A", ISRC: "ISRC1"},
 			{ID: "2", Title: "Track 2", Artist: "Artist B", ISRC: "ISRC2"},
 			{ID: "3", Title: "Track 3", Artist: "Artist C", ISRC: "ISRC3"},
 		},
 	}
 
-	destExport := &services.PlaylistExport{
-		Playlist: services.Playlist{ID: "dest", Name: "Destination"},
-		Tracks: []services.Track{
+	destExport := &models.PlaylistExport{
+		Playlist: models.Playlist{ID: "dest", Name: "Destination"},
+		Tracks: []models.Track{
 			{ID: "10", Title: "Track 1", Artist: "Artist A", ISRC: "ISRC1"}, // Match by ISRC
 			{ID: "20", Title: "Track 2", Artist: "Artist B"},                // Match by title+artist
 			{ID: "40", Title: "Track 4", Artist: "Artist D", ISRC: "ISRC4"}, // Extra track
@@ -336,14 +337,14 @@ func TestPlaylistEngine_Diff(t *testing.T) {
 
 	sourceSvc := &mockService{
 		name: "Spotify",
-		playlistExports: map[string]*services.PlaylistExport{
+		playlistExports: map[string]*models.PlaylistExport{
 			"src": sourceExport,
 		},
 	}
 
 	destSvc := &mockService{
 		name: "YouTube Music",
-		playlistExports: map[string]*services.PlaylistExport{
+		playlistExports: map[string]*models.PlaylistExport{
 			"dest": destExport,
 		},
 	}
@@ -455,19 +456,19 @@ func TestProgressUpdate_NonBlocking(t *testing.T) {
 	engine := NewPlaylistEngine(
 		&mockService{
 			name: "Spotify",
-			playlistExports: map[string]*services.PlaylistExport{
+			playlistExports: map[string]*models.PlaylistExport{
 				"p1": {
-					Playlist: services.Playlist{ID: "p1", Name: "Test"},
-					Tracks:   []services.Track{{ID: "t1", Title: "Song", Artist: "Artist"}},
+					Playlist: models.Playlist{ID: "p1", Name: "Test"},
+					Tracks:   []models.Track{{ID: "t1", Title: "Song", Artist: "Artist"}},
 				},
 			},
 		},
 		&mockService{
 			name: "YouTube Music",
-			searchResults: map[string]*services.Track{
+			searchResults: map[string]*models.Track{
 				"Song|Artist": {ID: "yt1", Title: "Song", Artist: "Artist"},
 			},
-			importResult: &services.Playlist{ID: "ytp1", Name: "Test", TrackCount: 1},
+			importResult: &models.Playlist{ID: "ytp1", Name: "Test", TrackCount: 1},
 		},
 		nil,
 	)

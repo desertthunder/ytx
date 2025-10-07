@@ -5,8 +5,9 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/http"
 
-	"github.com/desertthunder/song-migrations/internal/services"
+	"github.com/desertthunder/ytx/internal/models"
 )
 
 // MockService is a test double for [services.Service]
@@ -16,19 +17,19 @@ func (m *MockService) Authenticate(ctx context.Context, credentials map[string]s
 	return nil
 }
 
-func (m *MockService) GetPlaylists(ctx context.Context) ([]services.Playlist, error) {
-	return []services.Playlist{}, nil
+func (m *MockService) GetPlaylists(ctx context.Context) ([]models.Playlist, error) {
+	return []models.Playlist{}, nil
 }
-func (m *MockService) GetPlaylist(ctx context.Context, playlistID string) (*services.Playlist, error) {
+func (m *MockService) GetPlaylist(ctx context.Context, playlistID string) (*models.Playlist, error) {
 	return nil, nil
 }
-func (m *MockService) ExportPlaylist(ctx context.Context, playlistID string) (*services.PlaylistExport, error) {
+func (m *MockService) ExportPlaylist(ctx context.Context, playlistID string) (*models.PlaylistExport, error) {
 	return nil, nil
 }
-func (m *MockService) ImportPlaylist(ctx context.Context, playlist *services.PlaylistExport) (*services.Playlist, error) {
+func (m *MockService) ImportPlaylist(ctx context.Context, playlist *models.PlaylistExport) (*models.Playlist, error) {
 	return nil, nil
 }
-func (m *MockService) SearchTrack(ctx context.Context, title, artist string) (*services.Track, error) {
+func (m *MockService) SearchTrack(ctx context.Context, title, artist string) (*models.Track, error) {
 	return nil, nil
 }
 func (m *MockService) Name() string { return "mock" }
@@ -57,4 +58,29 @@ func (l *LimitedWriter) Write(p []byte) (n int, err error) {
 
 func NewLimitedWriter(maxWrites, written int, target io.Writer) LimitedWriter {
 	return LimitedWriter{maxWrites: maxWrites, written: written, target: target}
+}
+
+// MockRoundTripper allows custom HTTP responses for testing
+type MockRoundTripper struct {
+	response *http.Response
+	err      error
+}
+
+func NewMockRoundTripper(r *http.Response, e error) *MockRoundTripper {
+	return &MockRoundTripper{response: r, err: e}
+}
+
+func (m *MockRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return m.response, m.err
+}
+
+// FCloser simulates a failure when reading response body
+type FCloser struct{}
+
+func (f *FCloser) Read(p []byte) (n int, err error) {
+	return 0, errors.New("read failed")
+}
+
+func (f *FCloser) Close() error {
+	return nil
 }

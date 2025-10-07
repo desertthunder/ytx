@@ -1,4 +1,4 @@
-module github.com/desertthunder/song-migrations
+module github.com/desertthunder/ytx
 
 go 1.24.5
 

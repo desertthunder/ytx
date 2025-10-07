@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/desertthunder/ytx/internal/models"
 )
 
 const defaultYTBaseURL string = "http://localhost:8080"
@@ -40,9 +42,9 @@ type YouTubeTrack struct {
 	Artists     []YouTubeArtist `json:"artists"`
 	Album       *youtubeAlbum   `json:"album"`
 	Duration    string          `json:"duration"`
-	DurationSec int `json:"duration_seconds"` // Duration in seconds
+	DurationSec int             `json:"duration_seconds"` // Duration in seconds
 	Thumbnails  []YouTubeImage  `json:"thumbnails"`
-	ISRC        string          `json:"isrc,omitempty"` // TODO: use ISRC for MusicBrainz matching
+	ISRC        string          `json:"isrc,omitempty"`       // TODO: use ISRC for MusicBrainz matching
 	SetVideoID  string          `json:"setVideoId,omitempty"` // Unique ID of this playlist item, needed for moving/removing playlist items
 }
 
@@ -136,7 +138,7 @@ func (y *YouTubeService) doRequest(ctx context.Context, method, endpoint string,
 // GetPlaylists retrieves all playlists for the authenticated user.
 //
 // Calls GET /api/library/playlists on the proxy.
-func (y *YouTubeService) GetPlaylists(ctx context.Context) ([]Playlist, error) {
+func (y *YouTubeService) GetPlaylists(ctx context.Context) ([]models.Playlist, error) {
 	var ytPlaylists []struct {
 		PlaylistID  string         `json:"playlistId"`
 		Title       string         `json:"title"`
@@ -150,9 +152,9 @@ func (y *YouTubeService) GetPlaylists(ctx context.Context) ([]Playlist, error) {
 		return nil, err
 	}
 
-	playlists := make([]Playlist, len(ytPlaylists))
+	playlists := make([]models.Playlist, len(ytPlaylists))
 	for i, ytp := range ytPlaylists {
-		playlists[i] = Playlist{
+		playlists[i] = models.Playlist{
 			ID:          ytp.PlaylistID,
 			Name:        ytp.Title,
 			Description: ytp.Description,
@@ -167,7 +169,7 @@ func (y *YouTubeService) GetPlaylists(ctx context.Context) ([]Playlist, error) {
 // GetPlaylist retrieves a specific playlist by ID without tracks.
 //
 // Calls GET /api/playlists/{id} on the proxy.
-func (y *YouTubeService) GetPlaylist(ctx context.Context, playlistID string) (*Playlist, error) {
+func (y *YouTubeService) GetPlaylist(ctx context.Context, playlistID string) (*models.Playlist, error) {
 	var ytPlaylist struct {
 		ID          string `json:"id"`
 		Title       string `json:"title"`
@@ -188,7 +190,7 @@ func (y *YouTubeService) GetPlaylist(ctx context.Context, playlistID string) (*P
 		return nil, err
 	}
 
-	return &Playlist{
+	return &models.Playlist{
 		ID:          ytPlaylist.ID,
 		Name:        ytPlaylist.Title,
 		Description: ytPlaylist.Description,
@@ -200,7 +202,7 @@ func (y *YouTubeService) GetPlaylist(ctx context.Context, playlistID string) (*P
 // ExportPlaylist exports a playlist with all its tracks.
 //
 // Calls GET /api/playlists/{id} on the proxy.
-func (y *YouTubeService) ExportPlaylist(ctx context.Context, playlistID string) (*PlaylistExport, error) {
+func (y *YouTubeService) ExportPlaylist(ctx context.Context, playlistID string) (*models.PlaylistExport, error) {
 	var ytPlaylist struct {
 		ID          string         `json:"id"`
 		Title       string         `json:"title"`
@@ -222,7 +224,7 @@ func (y *YouTubeService) ExportPlaylist(ctx context.Context, playlistID string) 
 		return nil, err
 	}
 
-	playlist := Playlist{
+	playlist := models.Playlist{
 		ID:          ytPlaylist.ID,
 		Name:        ytPlaylist.Title,
 		Description: ytPlaylist.Description,
@@ -230,9 +232,9 @@ func (y *YouTubeService) ExportPlaylist(ctx context.Context, playlistID string) 
 		Public:      ytPlaylist.Privacy == "PUBLIC",
 	}
 
-	tracks := make([]Track, len(ytPlaylist.Tracks))
+	tracks := make([]models.Track, len(ytPlaylist.Tracks))
 	for i, ytt := range ytPlaylist.Tracks {
-		track := Track{
+		track := models.Track{
 			ID:       ytt.VideoID,
 			Title:    ytt.Title,
 			Duration: ytt.DurationSec,
@@ -250,7 +252,7 @@ func (y *YouTubeService) ExportPlaylist(ctx context.Context, playlistID string) 
 		tracks[i] = track
 	}
 
-	return &PlaylistExport{
+	return &models.PlaylistExport{
 		Playlist: playlist,
 		Tracks:   tracks,
 	}, nil
@@ -259,7 +261,7 @@ func (y *YouTubeService) ExportPlaylist(ctx context.Context, playlistID string) 
 // ImportPlaylist imports a playlist into YouTube Music.
 //
 // Creates the playlist via POST /api/playlists and adds tracks via POST /api/playlists/{id}/items.
-func (y *YouTubeService) ImportPlaylist(ctx context.Context, playlist *PlaylistExport) (*Playlist, error) {
+func (y *YouTubeService) ImportPlaylist(ctx context.Context, playlist *models.PlaylistExport) (*models.Playlist, error) {
 	createReq := struct {
 		Title         string `json:"title"`
 		Description   string `json:"description"`
@@ -344,7 +346,7 @@ func (y *YouTubeService) ImportPlaylist(ctx context.Context, playlist *PlaylistE
 		}
 	}
 
-	return &Playlist{
+	return &models.Playlist{
 		ID:          createResp.PlaylistID,
 		Name:        playlist.Playlist.Name,
 		Description: playlist.Playlist.Description,
@@ -356,15 +358,15 @@ func (y *YouTubeService) ImportPlaylist(ctx context.Context, playlist *PlaylistE
 // SearchTrack searches for a track by title and artist, returning the best match.
 //
 // Calls GET /api/search?q={title} {artist}&filter=songs on the proxy.
-func (y *YouTubeService) SearchTrack(ctx context.Context, title, artist string) (*Track, error) {
+func (y *YouTubeService) SearchTrack(ctx context.Context, title, artist string) (*models.Track, error) {
 	query := fmt.Sprintf("%s %s", title, artist)
 	endpoint := fmt.Sprintf("/api/search?q=%s&filter=songs", url.QueryEscape(query))
 
 	var results []struct {
-		VideoID        string          `json:"videoId"`
-		Title          string          `json:"title"`
-		Artists        []YouTubeArtist `json:"artists"`
-		Album          *struct {
+		VideoID string          `json:"videoId"`
+		Title   string          `json:"title"`
+		Artists []YouTubeArtist `json:"artists"`
+		Album   *struct {
 			Name string `json:"name"`
 		} `json:"album"`
 		Duration       string `json:"duration"`
@@ -386,7 +388,7 @@ func (y *YouTubeService) SearchTrack(ctx context.Context, title, artist string) 
 	}
 
 	result := results[0]
-	track := &Track{
+	track := &models.Track{
 		ID:       result.VideoID,
 		Title:    result.Title,
 		Duration: result.DurationSec,
