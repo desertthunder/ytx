@@ -1,4 +1,7 @@
-"""FastAPI proxy server for YouTube Music API."""
+"""FastAPI proxy server for YouTube Music API.
+
+TODO: Create exceptions module
+"""
 
 import json
 import os
@@ -197,6 +200,25 @@ async def get_playlist(playlist_id: str, ytmusic: TYtMusic) -> dict[str, Any]:
         raise handle_ytmusic_error(exc) from exc
 
 
+class PlaylistResultError(ValueError):
+    """Response parsing error."""
+
+    def __init__(self, *args: object) -> None:
+        """Adds Playlist ID message to ValueError."""
+        super().__init__(*args, "Could not extract playlist_id from response")
+
+
+def _get_playlist_id(result: str | dict[str, Any]) -> str:
+    if isinstance(result, dict):
+        id = result.get("playlistId") or result.get("id")
+    else:
+        id = result
+    if not id:
+        raise PlaylistResultError
+
+    return id
+
+
 @app.post("/api/playlists")
 async def create_playlist(data: req.CreatePlaylist, ytmusic: TYtMusic) -> resp.CreatePlaylist:
     """Create a new playlist.
@@ -209,15 +231,14 @@ async def create_playlist(data: req.CreatePlaylist, ytmusic: TYtMusic) -> resp.C
         Playlist ID of created playlist
     """
     try:
-        playlist_id = ytmusic.create_playlist(
-            data.title,
-            data.description,
-            privacy_status=data.privacy_status,
+        result = ytmusic.create_playlist(
+            data.title, data.description, privacy_status=data.privacy_status
         )
+        id = _get_playlist_id(result)
     except Exception as e:
         raise handle_ytmusic_error(e) from e
     else:
-        return resp.CreatePlaylist(playlist_id=playlist_id)
+        return resp.CreatePlaylist(playlist_id=id)
 
 
 @app.put("/api/playlists/{playlist_id}")
@@ -234,11 +255,7 @@ async def edit_playlist(
     Returns:
         Success status
     """
-    result = ytmusic.edit_playlist(
-        playlist_id,
-        title=data.title,
-        description=data.description,
-    )
+    result = ytmusic.edit_playlist(playlist_id, title=data.title, description=data.description)
     return resp.Success(status="success", result=result)
 
 
@@ -469,7 +486,6 @@ async def delete_upload(entity_id: str, ytmusic: TYtMusic) -> resp.Success:
     return resp.Success(status="success", result=result)
 
 
-# Stub Domains
 @app.api_route("/api/podcasts/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def podcasts_stub(path: str) -> JSONResponse:
     """Stub endpoint for podcasts - not implemented."""
@@ -489,15 +505,13 @@ async def explore_stub(path: str) -> JSONResponse:
 
 
 @app.get("/api/search")
-async def search(
-    q: str, filter: str | None = None, ytmusic: TYtMusic = None
-) -> list[dict[str, Any]]:
+async def search(q: str, ytmusic: TYtMusic, filter: str | None = None) -> list[dict[str, Any]]:
     """Search YouTube Music for tracks, albums, artists, etc.
 
     Args:
         q: Search query string
-        filter: Optional filter (songs, videos, albums, artists, playlists)
         ytmusic: YTMusic client instance
+        filter: Optional filter (songs, videos, albums, artists, playlists)
 
     Returns:
         List of search results

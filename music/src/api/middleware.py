@@ -70,7 +70,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         log_level = "error" if response.status_code >= 400 else "info"
         log_extra = {"status_code": response.status_code, "duration_ms": round(duration * 1000, 2)}
 
-        message = (f"{request.method} {request.url.path} - {response.status_code}",)
+        message = f"{request.method} {request.url.path} - {response.status_code}"
         getattr(logger, log_level)(message, extra=log_extra)
 
         return response

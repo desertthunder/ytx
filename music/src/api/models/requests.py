@@ -1,6 +1,7 @@
 """Request & Response Models."""
 
 from pydantic import BaseModel
+from ytmusicapi import LikeStatus
 
 
 class CreatePlaylist(BaseModel):
@@ -33,7 +34,7 @@ class RmPlaylistItems(BaseModel):
 class RateSong(BaseModel):
     """Model for rating a song."""
 
-    rating: str  # LIKE, DISLIKE, INDIFFERENT
+    rating: LikeStatus
 
 
 class SubscribeArtists(BaseModel):
@@ -46,4 +47,4 @@ class BrowserSetup(BaseModel):
     """Model for browser authentication setup."""
 
     headers_raw: str
-    filepath: str = "browser.json"
+    filepath: str | None = None

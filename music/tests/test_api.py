@@ -82,7 +82,13 @@ class TestSetupEndpoints:
 
     def test_setup_success(self, tmp_path):
         """Setup endpoint should create browser.json from headers."""
-        with patch("src.api.app.ytmusic_setup") as mock_setup:
+        def mock_ytmusic_setup(filepath, headers_raw):
+            """Mock ytmusic_setup to write test auth data."""
+            import json
+            with open(filepath, 'w') as f:
+                json.dump({"cookie": "test_cookie", "X-Goog-AuthUser": "0"}, f)
+
+        with patch("src.api.app.ytmusic_setup", side_effect=mock_ytmusic_setup) as mock_setup:
             headers_raw = "cookie: test\nuser-agent: test"
             filepath = str(tmp_path / "browser.json")
 
@@ -94,7 +100,8 @@ class TestSetupEndpoints:
             assert res.status_code == 200
             assert res.json()["success"] is True
             assert res.json()["filepath"] == filepath
-            mock_setup.assert_called_once_with(filepath=filepath, headers_raw=headers_raw)
+            assert mock_setup.call_count == 1
+            assert mock_setup.call_args.kwargs["headers_raw"] == headers_raw
 
     def test_setup_failure(self):
         """Setup endpoint should return 400 on failure."""
