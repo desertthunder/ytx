@@ -104,12 +104,18 @@ type SyncEngine interface {
 	Dump(ctx context.Context, progress chan<- ProgressUpdate) (*DumpResult, error)
 }
 
+// TrackCacher defines the interface for caching tracks to automatically cache tracks during transfer operations.
+type TrackCacher interface {
+	CacheTrack(service, serviceID string, track models.Track) error
+}
+
 // PlaylistEngine implements SyncEngine for playlist operations.
-// Contains dependencies on music services and API client.
+// Contains dependencies on music services, API client, and optional track caching.
 type PlaylistEngine struct {
-	spotify services.Service
-	youtube services.Service
-	api     APIClient
+	spotify     services.Service
+	youtube     services.Service
+	api         APIClient
+	trackCacher TrackCacher // Optional: tracks are cached automatically if provided
 }
 
 func (r TransferRunResult) GetInfo() string {
@@ -134,6 +140,12 @@ func NewPlaylistEngine(spotify, youtube services.Service, api APIClient) *Playli
 	}
 }
 
+// SetTrackCacher enables automatic track caching for this engine.
+// Tracks fetched from Spotify and YouTube will be cached transparently.
+func (e *PlaylistEngine) SetTrackCacher(cacher TrackCacher) {
+	e.trackCacher = cacher
+}
+
 // sendProgress sends a progress update through the channel without blocking.
 // Uses select with default to ensure progress reporting never blocks execution.
 func (e *PlaylistEngine) sendProgress(progress chan<- ProgressUpdate, update ProgressUpdate) {
@@ -145,6 +157,25 @@ func (e *PlaylistEngine) sendProgress(progress chan<- ProgressUpdate, update Pro
 		// Sent successfully
 	default:
 		// Channel full or closed, skip this update
+	}
+}
+
+// cacheTrack attempts to cache a track. Failures are silent to avoid disrupting operations.
+func (e *PlaylistEngine) cacheTrack(service, serviceID string, track models.Track) {
+	if e.trackCacher == nil {
+		return
+	}
+	// Cache failures are silent - they should not disrupt playlist operations
+	_ = e.trackCacher.CacheTrack(service, serviceID, track)
+}
+
+// cacheTracks attempts to cache multiple tracks. Failures are silent.
+func (e *PlaylistEngine) cacheTracks(service string, tracks []models.Track) {
+	if e.trackCacher == nil {
+		return
+	}
+	for _, track := range tracks {
+		e.cacheTrack(service, track.ID, track)
 	}
 }
 
@@ -190,6 +221,9 @@ func (e *PlaylistEngine) Run(ctx context.Context, srcID string, progress chan<- 
 	result.SourcePlaylist = srcPlaylist
 	result.TotalTracks = total
 
+	// Cache all source tracks automatically
+	e.cacheTracks("spotify", srcPlaylist.Tracks)
+
 	e.sendProgress(progress, foundPlaylistUpdate(1, 1, srcPlaylist))
 	e.sendProgress(progress, searchTracksUpdate(0, total, nil))
 
@@ -208,6 +242,8 @@ func (e *PlaylistEngine) Run(ctx context.Context, srcID string, progress chan<- 
 
 		if err == nil {
 			successCount++
+			// Cache matched YouTube track automatically
+			e.cacheTrack("youtube", ytTrack.ID, *ytTrack)
 		}
 	}
 

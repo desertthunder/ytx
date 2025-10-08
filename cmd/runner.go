@@ -69,7 +69,7 @@ func NewRunner(opts RunnerOpts) *Runner {
 func (r *Runner) register() []*cli.Command {
 	commands := []*cli.Command{}
 	for _, fn := range [](func(*Runner) *cli.Command){
-		setupCommand, authCommand, spotifyCommand, apiCommand, ytmusicCommand, transferCommand, tuiCommand,
+		setupCommand, authCommand, spotifyCommand, apiCommand, ytmusicCommand, transferCommand, cacheCommand, tuiCommand,
 	} {
 		commands = append(commands, fn(r))
 	}

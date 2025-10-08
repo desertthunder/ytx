@@ -127,6 +127,9 @@ ytx api dump
 | --------- | ---------------------------------------------- |
 | `ytx tui` | Launch BubbleTea TUI for interactive transfers |
 
+- Persistence layer
+    - See [`models`](/internal/models/models.go) & [`database`](/internal/shared/database.go)
+
 ### v0.4
 
 | Feature       | Description                                  |
@@ -136,12 +139,6 @@ ytx api dump
 
 ### v0.5
 
-Persistence layer.
-
-See [`models`](/internal/models/models.go) & [`database`](/internal/shared/database.go)
-
-### v0.6
-
 | Command                                                         | Description                                             | Example                                 |
 | --------------------------------------------------------------- | ------------------------------------------------------- | --------------------------------------- |
 | `ytx m[usic]b[rainz] artist "Daft Punk"`                        | Search artists by name                                  | Returns JSON list of matches            |
@@ -150,7 +147,7 @@ See [`models`](/internal/models/models.go) & [`database`](/internal/shared/datab
 | `ytx m[usic]b[rainz] enrich --input playlist.json`              | Enrich your Spotify playlist JSON with MusicBrainz data | Adds canonical IDs, release dates, etc. |
 | `ytx m[usic]b[rainz] browse --tag electronic`                   | Browse tagged recordings or artists                     | Category browsing                       |
 
-### v0.7
+### v0.6
 
 | Command                                 | Description                    | Example                                   |
 | --------------------------------------- | ------------------------------ | ----------------------------------------- |
