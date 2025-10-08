@@ -109,7 +109,6 @@ func TestPlaylistEngine_Run(t *testing.T) {
 	tests := []struct {
 		name           string
 		sourceID       string
-		destName       string
 		spotifyService *mockService
 		youtubeService *mockService
 		wantErr        bool
@@ -119,7 +118,6 @@ func TestPlaylistEngine_Run(t *testing.T) {
 		{
 			name:     "successful transfer by ID",
 			sourceID: "playlist123",
-			destName: "My YouTube Playlist",
 			spotifyService: &mockService{
 				name: "Spotify",
 				playlistExports: map[string]*models.PlaylistExport{
@@ -143,7 +141,7 @@ func TestPlaylistEngine_Run(t *testing.T) {
 				},
 				importResult: &models.Playlist{
 					ID:         "yt_playlist",
-					Name:       "My YouTube Playlist",
+					Name:       "My Spotify Playlist",
 					TrackCount: 2,
 				},
 			},
@@ -154,7 +152,6 @@ func TestPlaylistEngine_Run(t *testing.T) {
 		{
 			name:     "successful transfer by name",
 			sourceID: "My Spotify Playlist",
-			destName: "My YouTube Playlist",
 			spotifyService: &mockService{
 				name: "Spotify",
 				playlists: []models.Playlist{
@@ -181,7 +178,7 @@ func TestPlaylistEngine_Run(t *testing.T) {
 				},
 				importResult: &models.Playlist{
 					ID:         "yt_playlist",
-					Name:       "My YouTube Playlist",
+					Name:       "My Spotify Playlist",
 					TrackCount: 1,
 				},
 			},
@@ -192,7 +189,6 @@ func TestPlaylistEngine_Run(t *testing.T) {
 		{
 			name:     "partial success with some tracks not found",
 			sourceID: "playlist123",
-			destName: "My YouTube Playlist",
 			spotifyService: &mockService{
 				name: "Spotify",
 				playlistExports: map[string]*models.PlaylistExport{
@@ -218,7 +214,7 @@ func TestPlaylistEngine_Run(t *testing.T) {
 				},
 				importResult: &models.Playlist{
 					ID:         "yt_playlist",
-					Name:       "My YouTube Playlist",
+					Name:       "My Spotify Playlist",
 					TrackCount: 2,
 				},
 			},
@@ -229,7 +225,6 @@ func TestPlaylistEngine_Run(t *testing.T) {
 		{
 			name:     "no tracks matched - should error",
 			sourceID: "playlist123",
-			destName: "My YouTube Playlist",
 			spotifyService: &mockService{
 				name: "Spotify",
 				playlistExports: map[string]*models.PlaylistExport{
@@ -265,7 +260,7 @@ func TestPlaylistEngine_Run(t *testing.T) {
 				}
 			}()
 
-			result, err := engine.Run(context.Background(), tt.sourceID, tt.destName, progressCh)
+			result, err := engine.Run(context.Background(), tt.sourceID, progressCh)
 			close(progressCh)
 
 			if (err != nil) != tt.wantErr {
@@ -290,7 +285,7 @@ func TestPlaylistEngine_Run_ServiceErrors(t *testing.T) {
 		engine := NewPlaylistEngine(nil, &mockService{}, nil)
 		progressCh := make(chan ProgressUpdate, 10)
 
-		_, err := engine.Run(context.Background(), "playlist123", "dest", progressCh)
+		_, err := engine.Run(context.Background(), "playlist123", progressCh)
 		close(progressCh)
 
 		if err == nil {
@@ -307,7 +302,7 @@ func TestPlaylistEngine_Run_ServiceErrors(t *testing.T) {
 		engine := NewPlaylistEngine(&mockService{}, nil, nil)
 		progressCh := make(chan ProgressUpdate, 10)
 
-		_, err := engine.Run(context.Background(), "playlist123", "dest", progressCh)
+		_, err := engine.Run(context.Background(), "playlist123", progressCh)
 		close(progressCh)
 
 		if err == nil {
@@ -481,7 +476,7 @@ func TestProgressUpdate_NonBlocking(t *testing.T) {
 	// Run should complete even though progress channel is not being read
 	done := make(chan bool)
 	go func() {
-		_, err := engine.Run(context.Background(), "p1", "dest", progressCh)
+		_, err := engine.Run(context.Background(), "p1", progressCh)
 		if err != nil {
 			t.Errorf("Run() error = %v", err)
 		}

@@ -21,12 +21,11 @@ func ParseCurlFile(filepath string) (*CurlHeaders, error) {
 		return nil, fmt.Errorf("failed to read curl file: %w", err)
 	}
 
-	return ParseCurlCommand(content)
+	return ParseCurlCommand(string(content))
 }
 
 // ParseCurlCommand parses a cURL command string and extracts headers.
-func ParseCurlCommand(data []byte) (*CurlHeaders, error) {
-	curlCmd := string(data)
+func ParseCurlCommand(curlCmd string) (*CurlHeaders, error) {
 	curlCmd = strings.ReplaceAll(curlCmd, "\\\n", " ")
 	curlCmd = strings.ReplaceAll(curlCmd, "\\", "")
 

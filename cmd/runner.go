@@ -109,3 +109,9 @@ func (r *Runner) writePlain(format string, args ...any) error {
 	}
 	return nil
 }
+
+func (r *Runner) writePlainHeader(title string) {
+	r.writePlain("═══════════════════════════════════════\n")
+	r.writePlain("%v\n", title)
+	r.writePlain("═══════════════════════════════════════\n")
+}

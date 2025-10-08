@@ -1,3 +1,7 @@
+// package tasks implements playlist transfer operations between music services.
+//
+// The core abstraction is SyncEngine, which orchestrates playlist transfers, comparisons, and data dumps.
+// Operations emit progress updates via channels for non-blocking status reporting to CLI/UI layers.
 package tasks
 
 import (
@@ -133,7 +137,7 @@ func (e *PlaylistEngine) sendProgress(progress chan<- ProgressUpdate, update Pro
 }
 
 // Run performs a full Spotify → YouTube Music playlist sync.
-func (e *PlaylistEngine) Run(ctx context.Context, srcIdOrName, destName string, progress chan<- ProgressUpdate) (*TransferRunResult, error) {
+func (e *PlaylistEngine) Run(ctx context.Context, srcID string, progress chan<- ProgressUpdate) (*TransferRunResult, error) {
 	if e.spotify == nil {
 		return nil, fmt.Errorf("%w: Spotify service not initialized", shared.ErrServiceUnavailable)
 	}
@@ -145,42 +149,42 @@ func (e *PlaylistEngine) Run(ctx context.Context, srcIdOrName, destName string, 
 
 	e.sendProgress(progress, fetchingSourceUpdate(1, 1))
 
-	srcPl, err := e.spotify.ExportPlaylist(ctx, srcIdOrName)
+	srcPlaylist, err := e.spotify.ExportPlaylist(ctx, srcID)
 	if err != nil {
-		playlists, plErr := e.spotify.GetPlaylists(ctx)
-		if plErr != nil {
-			return nil, fmt.Errorf("%w: failed to get playlists: %v", shared.ErrAPIRequest, plErr)
+		playlists, playlistsErr := e.spotify.GetPlaylists(ctx)
+		if playlistsErr != nil {
+			return nil, fmt.Errorf("%w: failed to get playlists: %v", shared.ErrAPIRequest, playlistsErr)
 		}
 
 		var matchedID string
 		for _, pl := range playlists {
-			if pl.Name == srcIdOrName {
+			if pl.Name == srcID {
 				matchedID = pl.ID
 				break
 			}
 		}
 
 		if matchedID == "" {
-			return nil, fmt.Errorf("%w: no playlist found with name '%s'", shared.ErrPlaylistNotFound, srcIdOrName)
+			return nil, fmt.Errorf("%w: no playlist found with name '%s'", shared.ErrPlaylistNotFound, srcID)
 		}
 
-		srcPl, err = e.spotify.ExportPlaylist(ctx, matchedID)
+		srcPlaylist, err = e.spotify.ExportPlaylist(ctx, matchedID)
 		if err != nil {
 			return nil, fmt.Errorf("%w: failed to export playlist: %v", shared.ErrAPIRequest, err)
 		}
 	}
 
-	total := len(srcPl.Tracks)
-	result.SourcePlaylist = srcPl
+	total := len(srcPlaylist.Tracks)
+	result.SourcePlaylist = srcPlaylist
 	result.TotalTracks = total
 
-	e.sendProgress(progress, foundPlaylistUpdate(1, 1, srcPl))
+	e.sendProgress(progress, foundPlaylistUpdate(1, 1, srcPlaylist))
 	e.sendProgress(progress, searchTracksUpdate(0, total, nil))
 
 	matches := make([]TrackMatchResult, total)
 	successCount := 0
 
-	for i, track := range srcPl.Tracks {
+	for i, track := range srcPlaylist.Tracks {
 		e.sendProgress(progress, searchTracksUpdate(i+1, total, &track))
 
 		ytTrack, err := e.youtube.SearchTrack(ctx, track.Title, track.Artist)
@@ -214,11 +218,10 @@ func (e *PlaylistEngine) Run(ctx context.Context, srcIdOrName, destName string, 
 			matchedTracks = append(matchedTracks, *match.Matched)
 		}
 	}
-
 	destExport := &models.PlaylistExport{
 		Playlist: models.Playlist{
-			Name:        destName,
-			Description: fmt.Sprintf("Migrated from Spotify: %s", srcPl.Playlist.Name),
+			Name:        srcPlaylist.Playlist.Name,
+			Description: fmt.Sprintf("Migrated from Spotify: %s", srcPlaylist.Playlist.Name),
 			Public:      false,
 		},
 		Tracks: matchedTracks,

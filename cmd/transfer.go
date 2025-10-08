@@ -4,23 +4,23 @@ import (
 	"context"
 	"fmt"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/desertthunder/ytx/internal/services"
 	"github.com/desertthunder/ytx/internal/shared"
 	"github.com/desertthunder/ytx/internal/tasks"
+	"github.com/desertthunder/ytx/internal/ui"
 	"github.com/urfave/cli/v3"
 )
 
 // TransferRun runs a full Spotify → YouTube Music sync.
 func (r *Runner) TransferRun(ctx context.Context, cmd *cli.Command) error {
-	sourceIDOrName := cmd.String("source")
-	destName := cmd.String("dest")
+	sourceID := cmd.String("source")
 
-	r.logger.Info("starting transfer", "source", sourceIDOrName, "dest", destName)
+	r.logger.Infof("starting transfer from source: %v", sourceID)
+
 	r.writePlain("Starting playlist transfer...\n")
-	r.writePlain("Source: %s\n", sourceIDOrName)
-	r.writePlain("Destination: %s\n\n", destName)
+	r.writePlain("Source: %s\n\n", sourceID)
 
-	// Create progress channel and goroutine to handle updates
 	progressCh := make(chan tasks.ProgressUpdate, 50)
 	go func() {
 		for update := range progressCh {
@@ -39,18 +39,14 @@ func (r *Runner) TransferRun(ctx context.Context, cmd *cli.Command) error {
 		}
 	}()
 
-	// Run the engine operation
-	result, err := r.engine.Run(ctx, sourceIDOrName, destName, progressCh)
+	result, err := r.engine.Run(ctx, sourceID, progressCh)
 	close(progressCh)
 
 	if err != nil {
 		return err
 	}
 
-	// Output summary
-	r.writePlain("\n═══════════════════════════════════════\n")
-	r.writePlain("Transfer Complete!\n")
-	r.writePlain("═══════════════════════════════════════\n")
+	r.writePlainHeader("Transfer Complete!")
 	r.writePlain("Source: %s (%d tracks)\n", result.SourcePlaylist.Playlist.Name, result.TotalTracks)
 	r.writePlain("Destination: %s (%d tracks)\n", result.DestPlaylist.Name, result.DestPlaylist.TrackCount)
 	r.writePlain("Success rate: %d/%d (%.1f%%)\n", result.SuccessCount, result.TotalTracks, result.MatchPercentage)
@@ -77,17 +73,15 @@ func (r *Runner) TransferDiff(ctx context.Context, cmd *cli.Command) error {
 	r.logger.Info("transfer diff requested", "source", sourceID, "dest", destID)
 	r.writePlain("Comparing playlists...\n\n")
 
-	// Determine which services to use
-	sourceSvc, err := r.resolveService(sourceService)
+	srcService, err := r.resolveService(sourceService)
 	if err != nil {
 		return err
 	}
-	destSvc, err := r.resolveService(destService)
+	dstService, err := r.resolveService(destService)
 	if err != nil {
 		return err
 	}
 
-	// Create progress channel and goroutine to handle updates
 	progressCh := make(chan tasks.ProgressUpdate, 10)
 	go func() {
 		for update := range progressCh {
@@ -95,21 +89,17 @@ func (r *Runner) TransferDiff(ctx context.Context, cmd *cli.Command) error {
 		}
 	}()
 
-	// Run the engine operation
-	result, err := r.engine.Diff(ctx, sourceSvc, destSvc, sourceID, destID, progressCh)
+	result, err := r.engine.Diff(ctx, srcService, dstService, sourceID, destID, progressCh)
 	close(progressCh)
 
 	if err != nil {
 		return err
 	}
 
-	// Output results
 	r.writePlain("\n✓ Source: %s (%d tracks)\n", result.Comparison.SourcePlaylist.Playlist.Name, len(result.Comparison.SourcePlaylist.Tracks))
 	r.writePlain("✓ Destination: %s (%d tracks)\n\n", result.Comparison.DestPlaylist.Playlist.Name, len(result.Comparison.DestPlaylist.Tracks))
 
-	r.writePlain("═══════════════════════════════════════\n")
-	r.writePlain("Comparison Results\n")
-	r.writePlain("═══════════════════════════════════════\n")
+	r.writePlainHeader("Comparison Results")
 	r.writePlain("Matched: %d tracks\n", result.Comparison.MatchedCount)
 	r.writePlain("Missing from destination: %d tracks\n", len(result.Comparison.MissingInDest))
 	r.writePlain("Extra in destination: %d tracks\n\n", len(result.Comparison.ExtraInDest))
@@ -135,6 +125,25 @@ func (r *Runner) TransferDiff(ctx context.Context, cmd *cli.Command) error {
 			}
 			r.writePlain("\n")
 		}
+	}
+
+	return nil
+}
+
+// TransferUI launches the interactive TUI for playlist transfer.
+func (r *Runner) TransferUI(ctx context.Context, cmd *cli.Command) error {
+	if r.spotify == nil {
+		return fmt.Errorf("%w: Spotify service not initialized", shared.ErrServiceUnavailable)
+	}
+	if r.engine == nil {
+		return fmt.Errorf("%w: transfer engine not initialized", shared.ErrServiceUnavailable)
+	}
+
+	model := ui.NewModel(ctx, r.spotify, r.engine)
+	p := tea.NewProgram(model, tea.WithAltScreen())
+
+	if _, err := p.Run(); err != nil {
+		return fmt.Errorf("error running TUI: %w", err)
 	}
 
 	return nil
@@ -173,13 +182,13 @@ func transferCommand(r *Runner) *cli.Command {
 						Usage:    "Source playlist name or ID",
 						Required: true,
 					},
-					&cli.StringFlag{
-						Name:     "dest",
-						Usage:    "Destination playlist name",
-						Required: true,
-					},
 				},
 				Action: r.TransferRun,
+			},
+			{
+				Name:  "ui",
+				Usage: "Interactive TUI for playlist transfer",
+				Action: r.TransferUI,
 			},
 			{
 				Name:  "diff",
