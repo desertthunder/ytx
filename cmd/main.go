@@ -24,11 +24,7 @@ func main() {
 	}
 
 	if config.Credentials.Spotify.ClientID != "" && config.Credentials.Spotify.ClientSecret != "" {
-		if svc, err := services.NewSpotifyService(map[string]string{
-			"client_id":     config.Credentials.Spotify.ClientID,
-			"client_secret": config.Credentials.Spotify.ClientSecret,
-			"redirect_uri":  config.Credentials.Spotify.RedirectURI,
-		}); err == nil {
+		if svc, err := services.NewSpotifyService(config.Credentials.Spotify.Map()); err == nil {
 			spot = svc
 
 			if config.Credentials.Spotify.AccessToken != "" {
@@ -36,7 +32,7 @@ func main() {
 				if err := svc.Authenticate(ctx, map[string]string{
 					"access_token": config.Credentials.Spotify.AccessToken,
 				}); err != nil {
-					logger.Warn("failed to authenticate with stored token", "error", err)
+					logger.Warnf("failed to authenticate with stored token %v", err)
 				} else {
 					logger.Debug("authenticated with stored access token")
 				}
@@ -54,11 +50,11 @@ func main() {
 			headersPath = absPath
 		}
 
-		logger.Info("authenticating YouTube service", "headers_path", headersPath)
+		logger.Debugf("authenticating YouTube service with header path %v", headersPath)
 		if err := yt.Authenticate(ctx, map[string]string{"auth_file": headersPath}); err != nil {
-			logger.Error("failed to authenticate YouTube service", "error", err)
+			logger.Errorf("failed to authenticate YouTube service %v", err)
 		} else {
-			logger.Info("authenticated YouTube service successfully")
+			logger.Debug("authenticated YouTube service successfully")
 		}
 	}
 
@@ -66,7 +62,7 @@ func main() {
 	if config.Credentials.YouTube.HeadersPath != "" {
 		if absPath, err := shared.AbsolutePath(config.Credentials.YouTube.HeadersPath); err == nil {
 			api.SetAuthFile(absPath)
-			logger.Info("configured API service with auth file", "headers_path", absPath)
+			logger.Debugf("configured API service with auth file header path %v", absPath)
 		}
 	}
 

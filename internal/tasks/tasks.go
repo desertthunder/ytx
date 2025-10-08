@@ -1,6 +1,6 @@
 // package tasks implements playlist transfer operations between music services.
 //
-// The core abstraction is SyncEngine, which orchestrates playlist transfers, comparisons, and data dumps.
+// The core abstraction is [SyncEngine], which orchestrates playlist transfers, comparisons, and data dumps.
 // Operations emit progress updates via channels for non-blocking status reporting to CLI/UI layers.
 package tasks
 
@@ -12,6 +12,11 @@ import (
 	"github.com/desertthunder/ytx/internal/services"
 	"github.com/desertthunder/ytx/internal/shared"
 )
+
+// APIClient defines the interface for making API requests to the proxy.
+type APIClient interface {
+	Get(ctx context.Context, path string) (*services.APIResponse, error)
+}
 
 // TrackMatchResult represents the result of attempting to match a single track.
 type TrackMatchResult struct {
@@ -107,10 +112,17 @@ type PlaylistEngine struct {
 	api     APIClient
 }
 
-// APIClient defines the interface for making API requests to the proxy.
-// This abstraction allows for easier testing and decoupling from concrete implementation.
-type APIClient interface {
-	Get(ctx context.Context, path string) (*services.APIResponse, error)
+func (r TransferRunResult) GetInfo() string {
+	return fmt.Sprintf(
+		"\nSource: %s (%d tracks)\nDestination: %s (%d tracks)\nSuccess rate: %d/%d (%.1f%%)",
+		r.SourcePlaylist.Playlist.Name,
+		r.TotalTracks,
+		r.DestPlaylist.Name,
+		r.SuccessCount,
+		r.SuccessCount,
+		r.TotalTracks,
+		r.MatchPercentage,
+	)
 }
 
 // NewPlaylistEngine creates a new PlaylistEngine with the provided services.

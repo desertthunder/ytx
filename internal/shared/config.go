@@ -53,6 +53,14 @@ type ServerConfig struct {
 	Port int    `toml:"port"`
 }
 
+func (s SpotifyConfig) Map() map[string]string {
+	return map[string]string{
+		"client_id":     s.ClientID,
+		"client_secret": s.ClientSecret,
+		"redirect_uri":  s.RedirectURI,
+	}
+}
+
 // LoadConfig reads and parses a TOML configuration file from the specified path.
 //
 // Expands ~ in file paths to the user's home directory.

@@ -4,26 +4,31 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var styles = NewPalette("#7D56F4", "#04B575", "#FF0000", "#FFA500", "#626262")
+
 // interface Painter defines coloring text with [lipgloss] styles
 type Painter interface {
 	On(string, lipgloss.Color) string // Sets background color
 	As(string, lipgloss.Color) string // Sets foreground color
 }
 
-type colors struct {
-	title   lipgloss.Style
-	success lipgloss.Style
-	error   lipgloss.Style
-	warning lipgloss.Style
-	help    lipgloss.Style
+// struct Palette is a simple stylesheet built with named [lipgloss.Style] fields
+type Palette struct {
+	title lipgloss.Style
+	ok    lipgloss.Style
+	err   lipgloss.Style
+	warn  lipgloss.Style
+	help  lipgloss.Style
 }
 
-var styles = colors{
-	title:   NewBold("#7D56F4").MarginBottom(1),
-	success: NewBold("#04B575"),
-	error:   NewBold("#FF0000"),
-	warning: NewStyle("#FFA500"),
-	help:    NewEm("#626262"),
+func NewPalette(t, s, e, w, h string) *Palette {
+	return &Palette{
+		title: NewBold(t).MarginBottom(1),
+		ok:    NewBold(s),
+		err:   NewBold(e),
+		warn:  NewStyle(w),
+		help:  NewEm(h),
+	}
 }
 
 func NewStyle(fg string) lipgloss.Style {

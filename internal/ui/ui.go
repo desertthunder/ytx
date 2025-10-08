@@ -44,52 +44,28 @@ type Model struct {
 	keys             keyMap
 }
 
-// keyMap defines the key bindings for the TUI.
+// keyMap defines the [key.Binding] mapping for the TUI.
 type keyMap struct {
-	up       key.Binding
-	down     key.Binding
-	enter    key.Binding
-	back     key.Binding
-	yes      key.Binding
-	no       key.Binding
-	restart  key.Binding
-	quit     key.Binding
+	up      key.Binding
+	down    key.Binding
+	enter   key.Binding
+	back    key.Binding
+	yes     key.Binding
+	no      key.Binding
+	restart key.Binding
+	quit    key.Binding
 }
 
 func newKeyMap() keyMap {
 	return keyMap{
-		up: key.NewBinding(
-			key.WithKeys("up", "k"),
-			key.WithHelp("↑/k", "up"),
-		),
-		down: key.NewBinding(
-			key.WithKeys("down", "j"),
-			key.WithHelp("↓/j", "down"),
-		),
-		enter: key.NewBinding(
-			key.WithKeys("enter"),
-			key.WithHelp("enter", "select"),
-		),
-		back: key.NewBinding(
-			key.WithKeys("esc"),
-			key.WithHelp("esc", "back"),
-		),
-		yes: key.NewBinding(
-			key.WithKeys("y"),
-			key.WithHelp("y", "yes"),
-		),
-		no: key.NewBinding(
-			key.WithKeys("n"),
-			key.WithHelp("n", "no"),
-		),
-		restart: key.NewBinding(
-			key.WithKeys("r"),
-			key.WithHelp("r", "restart"),
-		),
-		quit: key.NewBinding(
-			key.WithKeys("q", "ctrl+c"),
-			key.WithHelp("q", "quit"),
-		),
+		up:      key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
+		down:    key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
+		enter:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
+		back:    key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
+		yes:     key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "yes")),
+		no:      key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "no")),
+		restart: key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "restart")),
+		quit:    key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 	}
 }
 
@@ -135,32 +111,22 @@ func (i trackItem) Description() string {
 	return desc
 }
 
-type playlistsFetchedMsg struct {
-	playlists []models.Playlist
-	err       error
-}
-
-type tracksFetchedMsg struct {
-	playlist *models.PlaylistExport
-	err      error
-}
-
-type progressUpdateMsg tasks.ProgressUpdate
-
-type transferCompleteMsg struct {
-	result *tasks.TransferRunResult
-	err    error
-}
-
-// NewModel creates a new TUI model with the provided dependencies.
+// NewModel creates a new TUI [Model] with the provided dependencies.
 func NewModel(ctx context.Context, spotify services.Service, engine *tasks.PlaylistEngine) *Model {
+	playlistList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	playlistList.Title = "Spotify Playlists"
+
+	trackList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+
 	return &Model{
-		ctx:     ctx,
-		view:    PlaylistListView,
-		spotify: spotify,
-		engine:  engine,
-		help:    help.New(),
-		keys:    newKeyMap(),
+		ctx:          ctx,
+		view:         PlaylistListView,
+		spotify:      spotify,
+		engine:       engine,
+		playlistList: playlistList,
+		trackList:    trackList,
+		help:         help.New(),
+		keys:         newKeyMap(),
 	}
 }
 
@@ -169,86 +135,131 @@ func (m *Model) Init() tea.Cmd {
 	return m.fetchPlaylists()
 }
 
-// Update handles incoming messages and updates the model state.
+// Update handles incoming messages and updates the model state
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		if m.playlistList.Width() == 0 {
-			m.playlistList.SetSize(msg.Width-4, msg.Height-8)
-		}
-		if m.trackList.Width() == 0 {
-			m.trackList.SetSize(msg.Width-4, msg.Height-8)
-		}
-		return m, nil
-
+		return m.handleWindowSize(msg)
 	case tea.KeyMsg:
-		switch m.view {
-		case PlaylistListView:
-			return m.handlePlaylistListKeys(msg)
-		case TrackListView:
-			return m.handleTrackListKeys(msg)
-		case ConfirmView:
-			return m.handleConfirmKeys(msg)
-		case ResultView:
-			return m.handleResultKeys(msg)
-		}
+		return m.handleKey(msg)
+	}
 
-	case playlistsFetchedMsg:
-		if msg.err != nil {
-			m.err = msg.err
-			return m, tea.Quit
+	if appMsg, ok := msg.(Msg); ok {
+		switch appMsg.kind {
+		case MsgPlaylistsFetched:
+			return m.handlePlaylistsFetched(appMsg)
+		case MsgTracksFetched:
+			return m.handleTracksFetched(appMsg)
+		case MsgProgressUpdate:
+			return m.handleProgressUpdate(appMsg)
+		case MsgTransferComplete:
+			return m.handleTransferComplete(appMsg)
 		}
-		m.playlists = msg.playlists
-		items := make([]list.Item, len(msg.playlists))
-		for i, pl := range msg.playlists {
-			items[i] = playlistItem{playlist: pl}
-		}
-		m.playlistList = list.New(items, list.NewDefaultDelegate(), 0, 0)
-		m.playlistList.Title = "Spotify Playlists"
-		m.playlistList.SetSize(m.width-4, m.height-8)
-		return m, nil
-
-	case tracksFetchedMsg:
-		if msg.err != nil {
-			m.err = msg.err
-			m.view = PlaylistListView
-			return m, nil
-		}
-		m.selectedPlaylist = msg.playlist
-		items := make([]list.Item, len(msg.playlist.Tracks))
-		for i, track := range msg.playlist.Tracks {
-			items[i] = trackItem{track: track}
-		}
-		m.trackList = list.New(items, list.NewDefaultDelegate(), 0, 0)
-		m.trackList.Title = fmt.Sprintf("Tracks in '%s'", msg.playlist.Playlist.Name)
-		m.trackList.SetSize(m.width-4, m.height-8)
-		m.view = TrackListView
-		return m, nil
-
-	case progressUpdateMsg:
-		m.progress = tasks.ProgressUpdate(msg)
-		return m, m.waitForProgress()
-
-	case transferCompleteMsg:
-		m.result = msg.result
-		m.err = msg.err
-		m.view = ResultView
-		if m.progressChan != nil {
-			close(m.progressChan)
-			m.progressChan = nil
-		}
-		return m, nil
 	}
 
 	return m.updateLists(msg)
 }
 
+func (m *Model) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
+	m.width = msg.Width
+	m.height = msg.Height
+	if m.playlistList.Width() == 0 {
+		m.playlistList.SetSize(msg.Width-4, msg.Height-8)
+	}
+	if m.trackList.Width() == 0 {
+		m.trackList.SetSize(msg.Width-4, msg.Height-8)
+	}
+	return m, nil
+}
+
+func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch m.view {
+	case PlaylistListView:
+		return m.handlePlaylistListKeys(msg)
+	case TrackListView:
+		return m.handleTrackListKeys(msg)
+	case ConfirmView:
+		return m.handleConfirmKeys(msg)
+	case ResultView:
+		return m.handleResultKeys(msg)
+	}
+	return m, nil
+}
+
+func (m *Model) handlePlaylistsFetched(msg Msg) (tea.Model, tea.Cmd) {
+	data := msg.data.(struct {
+		playlists []models.Playlist
+		err       error
+	})
+
+	if data.err != nil {
+		m.err = data.err
+		return m, tea.Quit
+	}
+
+	m.playlists = data.playlists
+	items := make([]list.Item, len(data.playlists))
+	for i, pl := range data.playlists {
+		items[i] = playlistItem{playlist: pl}
+	}
+	m.playlistList.SetItems(items)
+	if m.width > 0 && m.height > 0 {
+		m.playlistList.SetSize(m.width-4, m.height-8)
+	}
+	return m, nil
+}
+
+func (m *Model) handleTracksFetched(msg Msg) (tea.Model, tea.Cmd) {
+	data := msg.data.(struct {
+		playlist *models.PlaylistExport
+		err      error
+	})
+
+	if data.err != nil {
+		m.err = data.err
+		m.view = PlaylistListView
+		return m, nil
+	}
+
+	m.selectedPlaylist = data.playlist
+	items := make([]list.Item, len(data.playlist.Tracks))
+	for i, track := range data.playlist.Tracks {
+		items[i] = trackItem{track: track}
+	}
+	m.trackList.SetItems(items)
+	m.trackList.Title = fmt.Sprintf("Tracks in '%s'", data.playlist.Playlist.Name)
+	if m.width > 0 && m.height > 0 {
+		m.trackList.SetSize(m.width-4, m.height-8)
+	}
+	m.view = TrackListView
+	return m, nil
+}
+
+func (m *Model) handleProgressUpdate(msg Msg) (tea.Model, tea.Cmd) {
+	m.progress = msg.data.(tasks.ProgressUpdate)
+	return m, m.waitForProgress()
+}
+
+func (m *Model) handleTransferComplete(msg Msg) (tea.Model, tea.Cmd) {
+	data := msg.data.(struct {
+		result *tasks.TransferRunResult
+		err    error
+	})
+
+	m.result = data.result
+	m.err = data.err
+	m.view = ResultView
+	if m.progressChan != nil {
+		close(m.progressChan)
+		m.progressChan = nil
+	}
+	return m, nil
+}
+
 // View renders the UI based on the current view state.
 func (m *Model) View() string {
 	if m.err != nil && m.view != ResultView {
-		return styles.error.Render(fmt.Sprintf("Error: %v\n\nPress q to quit", m.err))
+		return styles.err.Render(fmt.Sprintf("Error: %v\n\nPress q to quit", m.err))
 	}
 
 	switch m.view {
@@ -342,14 +353,14 @@ func (m *Model) updateLists(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Model) fetchPlaylists() tea.Cmd {
 	return func() tea.Msg {
 		playlists, err := m.spotify.GetPlaylists(m.ctx)
-		return playlistsFetchedMsg{playlists: playlists, err: err}
+		return playlistsFetchedMsg(playlists, err)
 	}
 }
 
 func (m *Model) fetchTracks(playlistID string) tea.Cmd {
 	return func() tea.Msg {
 		playlist, err := m.spotify.ExportPlaylist(m.ctx, playlistID)
-		return tracksFetchedMsg{playlist: playlist, err: err}
+		return tracksFetchedMsg(playlist, err)
 	}
 }
 
@@ -369,12 +380,12 @@ func (m *Model) startTransfer() tea.Cmd {
 func (m *Model) waitForProgress() tea.Cmd {
 	return func() tea.Msg {
 		if m.progressChan == nil {
-			return transferCompleteMsg{result: m.result, err: m.err}
+			return transferCompleteMsg(m.result, m.err)
 		}
 
 		update, ok := <-m.progressChan
 		if !ok {
-			return transferCompleteMsg{result: m.result, err: m.err}
+			return transferCompleteMsg(m.result, m.err)
 		}
 		return progressUpdateMsg(update)
 	}
@@ -426,28 +437,19 @@ func (m *Model) renderTransfer() string {
 
 func (m *Model) renderResult() string {
 	if m.err != nil {
-		return styles.error.Render(fmt.Sprintf("Transfer failed: %v\n\nPress r to retry, q to quit", m.err))
+		return styles.err.Render(fmt.Sprintf("Transfer failed: %v\n\nPress r to retry, q to quit", m.err))
 	}
 
 	if m.result == nil {
-		return styles.error.Render("No result available\n\nPress r to retry, q to quit")
+		return styles.err.Render("No result available\n\nPress r to retry, q to quit")
 	}
 
-	title := styles.success.Render("✓ Transfer Complete!")
-	info := fmt.Sprintf(
-		"\nSource: %s (%d tracks)\nDestination: %s (%d tracks)\nSuccess rate: %d/%d (%.1f%%)",
-		m.result.SourcePlaylist.Playlist.Name,
-		m.result.TotalTracks,
-		m.result.DestPlaylist.Name,
-		m.result.SuccessCount,
-		m.result.SuccessCount,
-		m.result.TotalTracks,
-		m.result.MatchPercentage,
-	)
+	title := styles.ok.Render("✓ Transfer Complete!")
+	info := m.result.GetInfo()
 
 	var failed string
 	if m.result.FailedCount > 0 {
-		failed = fmt.Sprintf("\n\n%s", styles.warning.Render(fmt.Sprintf("Failed to match %d tracks:", m.result.FailedCount)))
+		failed = fmt.Sprintf("\n\n%s", styles.warn.Render(fmt.Sprintf("Failed to match %d tracks:", m.result.FailedCount)))
 		for _, match := range m.result.TrackMatches {
 			if match.Error != nil {
 				failed += fmt.Sprintf("\n  • %s - %s", match.Original.Artist, match.Original.Title)
