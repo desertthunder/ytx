@@ -24,14 +24,13 @@ func main() {
 	}
 
 	if config.Credentials.Spotify.ClientID != "" && config.Credentials.Spotify.ClientSecret != "" {
-		if svc, err := services.NewSpotifyService(config.Credentials.Spotify.Map()); err == nil {
+		creds := config.Credentials.Spotify.Map()
+		if svc, err := services.NewSpotifyService(creds); err == nil {
 			spot = svc
 
 			if config.Credentials.Spotify.AccessToken != "" {
 				ctx := context.Background()
-				if err := svc.Authenticate(ctx, map[string]string{
-					"access_token": config.Credentials.Spotify.AccessToken,
-				}); err != nil {
+				if err := svc.Authenticate(ctx, creds); err != nil {
 					logger.Warnf("failed to authenticate with stored token %v", err)
 				} else {
 					logger.Debug("authenticated with stored access token")
@@ -66,7 +65,7 @@ func main() {
 		}
 	}
 
-	rconf := RunnerConfig{
+	rconf := RunnerOpts{
 		Config:  config,
 		Spotify: spot,
 		YouTube: yt,

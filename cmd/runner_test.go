@@ -23,7 +23,7 @@ func TestRunner(t *testing.T) {
 			youtube := &tu.MockService{}
 			api := &services.APIService{}
 
-			runner := NewRunner(RunnerConfig{
+			runner := NewRunner(RunnerOpts{
 				Config:     config,
 				Logger:     logger,
 				Output:     output,
@@ -57,7 +57,7 @@ func TestRunner(t *testing.T) {
 		})
 
 		t.Run("with nil config uses defaults", func(t *testing.T) {
-			runner := NewRunner(RunnerConfig{
+			runner := NewRunner(RunnerOpts{
 				Config: nil,
 			})
 
@@ -67,7 +67,7 @@ func TestRunner(t *testing.T) {
 		})
 
 		t.Run("with nil logger uses default", func(t *testing.T) {
-			runner := NewRunner(RunnerConfig{
+			runner := NewRunner(RunnerOpts{
 				Logger: nil,
 			})
 
@@ -77,7 +77,7 @@ func TestRunner(t *testing.T) {
 		})
 
 		t.Run("with nil output uses stdout", func(t *testing.T) {
-			runner := NewRunner(RunnerConfig{
+			runner := NewRunner(RunnerOpts{
 				Output: nil,
 			})
 
@@ -87,7 +87,7 @@ func TestRunner(t *testing.T) {
 		})
 
 		t.Run("with nil httpClient uses default", func(t *testing.T) {
-			runner := NewRunner(RunnerConfig{
+			runner := NewRunner(RunnerOpts{
 				HTTPClient: nil,
 			})
 
@@ -100,7 +100,7 @@ func TestRunner(t *testing.T) {
 	t.Run("writeJSON", func(t *testing.T) {
 		t.Run("writes formatted JSON successfully", func(t *testing.T) {
 			output := &bytes.Buffer{}
-			runner := NewRunner(RunnerConfig{Output: output})
+			runner := NewRunner(RunnerOpts{Output: output})
 
 			data := map[string]string{"key": "value"}
 			err := runner.writeJSON(data, true)
@@ -120,7 +120,7 @@ func TestRunner(t *testing.T) {
 
 		t.Run("writes compact JSON successfully", func(t *testing.T) {
 			output := &bytes.Buffer{}
-			runner := NewRunner(RunnerConfig{Output: output})
+			runner := NewRunner(RunnerOpts{Output: output})
 
 			data := map[string]string{"key": "value"}
 			err := runner.writeJSON(data, false)
@@ -138,7 +138,7 @@ func TestRunner(t *testing.T) {
 
 		t.Run("handles marshal error with non-serializable data", func(t *testing.T) {
 			output := &bytes.Buffer{}
-			runner := NewRunner(RunnerConfig{Output: output})
+			runner := NewRunner(RunnerOpts{Output: output})
 
 			// channels cannot be marshaled to JSON
 			data := make(chan int)
@@ -154,7 +154,7 @@ func TestRunner(t *testing.T) {
 
 		t.Run("handles write failure", func(t *testing.T) {
 			failing := &tu.FWriter{}
-			runner := NewRunner(RunnerConfig{Output: failing})
+			runner := NewRunner(RunnerOpts{Output: failing})
 
 			data := map[string]string{"key": "value"}
 			err := runner.writeJSON(data, false)
@@ -170,7 +170,7 @@ func TestRunner(t *testing.T) {
 		t.Run("handles newline write failure", func(t *testing.T) {
 			data := map[string]string{"key": "value"}
 			limitedWriter := tu.NewLimitedWriter(1, 0, &bytes.Buffer{})
-			runner := NewRunner(RunnerConfig{Output: &limitedWriter})
+			runner := NewRunner(RunnerOpts{Output: &limitedWriter})
 
 			err := runner.writeJSON(data, false)
 
@@ -186,7 +186,7 @@ func TestRunner(t *testing.T) {
 	t.Run("writePlain", func(t *testing.T) {
 		t.Run("writes plain text successfully", func(t *testing.T) {
 			output := &bytes.Buffer{}
-			runner := NewRunner(RunnerConfig{Output: output})
+			runner := NewRunner(RunnerOpts{Output: output})
 
 			err := runner.writePlain("hello %s", "world")
 
@@ -202,7 +202,7 @@ func TestRunner(t *testing.T) {
 
 		t.Run("writes plain text without formatting", func(t *testing.T) {
 			output := &bytes.Buffer{}
-			runner := NewRunner(RunnerConfig{Output: output})
+			runner := NewRunner(RunnerOpts{Output: output})
 
 			err := runner.writePlain("simple text")
 
@@ -218,7 +218,7 @@ func TestRunner(t *testing.T) {
 
 		t.Run("handles write failure", func(t *testing.T) {
 			failing := &tu.FWriter{}
-			runner := NewRunner(RunnerConfig{Output: failing})
+			runner := NewRunner(RunnerOpts{Output: failing})
 
 			err := runner.writePlain("test")
 
@@ -232,7 +232,7 @@ func TestRunner(t *testing.T) {
 	})
 
 	t.Run("register", func(t *testing.T) {
-		runner := NewRunner(RunnerConfig{})
+		runner := NewRunner(RunnerOpts{})
 		commands := runner.register()
 
 		if len(commands) == 0 {

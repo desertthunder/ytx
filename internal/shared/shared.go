@@ -88,3 +88,24 @@ func ExpandPath(p string) string {
 
 	return p
 }
+
+func ValidateJSON(data []byte) error {
+	var jsonTest any
+	if err := json.Unmarshal(data, &jsonTest); err != nil {
+		return fmt.Errorf("%w: file is not valid JSON", ErrInvalidInput)
+	} else {
+		return nil
+	}
+}
+
+func VerifyAndReadFile(p string) ([]byte, error) {
+	if _, err := os.Stat(p); os.IsNotExist(err) {
+		return []byte{}, fmt.Errorf("%w: file not found: %s", ErrInvalidArgument, p)
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		return []byte{}, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	return data, nil
+}

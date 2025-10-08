@@ -28,13 +28,3 @@ func (r *Runner) TUI(ctx context.Context, cmd *cli.Command) error {
 
 	return nil
 }
-
-// tuiCommand returns the top-level TUI command for interactive playlist management.
-func tuiCommand(r *Runner) *cli.Command {
-	return &cli.Command{
-		Name:    "tui",
-		Aliases: []string{"interactive", "ui"},
-		Usage:   "Launch interactive TUI for playlist transfer",
-		Action:  r.TUI,
-	}
-}

@@ -130,52 +130,9 @@ func (r *Runner) SetupYouTube(ctx context.Context, cmd *cli.Command) error {
 
 	r.writePlain("✓ YouTube Music authentication configured successfully\n")
 	r.writePlain("Auth file saved to: %s\n", outputPath)
-	r.writePlain("\nNext steps:\n")
+	r.writePlainln("Next steps:")
 	r.writePlain("1. Update config.toml with: credentials.youtube.headers_path = \"%s\"\n", outputPath)
 	r.writePlain("2. Run 'ytx ytmusic search \"your song\"' to test authentication\n")
 
 	return nil
-}
-
-// setupCommand handles setup operations for database and authentication.
-func setupCommand(r *Runner) *cli.Command {
-	return &cli.Command{
-		Name:  "setup",
-		Usage: "Setup and configuration commands",
-		Commands: []*cli.Command{
-			{
-				Name:  "database",
-				Usage: "Initialize database and run migrations",
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:    "config",
-						Aliases: []string{"c"},
-						Usage:   "Path to configuration file",
-						Value:   "config.toml",
-					},
-				},
-				Action: r.SetupDatabase,
-			},
-			{
-				Name:    "youtube",
-				Aliases: []string{"yt", "ytmusic"},
-				Usage:   "Configure YouTube Music authentication from browser headers",
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:  "curl",
-						Usage: "cURL command from browser DevTools (Copy as cURL)",
-					},
-					&cli.StringFlag{
-						Name:  "curl-file",
-						Usage: "Path to .sh file containing cURL command",
-					},
-					&cli.StringFlag{
-						Name:  "output",
-						Usage: "Output path for browser.json (default: ~/.ytx/browser.json)",
-					},
-				},
-				Action: r.SetupYouTube,
-			},
-		},
-	}
 }

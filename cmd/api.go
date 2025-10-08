@@ -121,7 +121,7 @@ func (r *Runner) APIDump(ctx context.Context, cmd *cli.Command) error {
 		r.logger.Warn("failed to fetch endpoint", "endpoint", endpointErr.Endpoint, "error", endpointErr.Error)
 	}
 
-	r.writePlain("\n✓ Dump complete\n\n")
+	r.writePlainln("✓ Dump complete\n")
 
 	dump := tasks.DumpData{
 		Health:         result.Health,
@@ -158,66 +158,4 @@ func (r *Runner) APIDump(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	return r.writeJSON(dump, pretty)
-}
-
-// apiCommand handles direct (proxy) API calls
-func apiCommand(r *Runner) *cli.Command {
-	return &cli.Command{
-		Name:  "api",
-		Usage: "Direct API calls to FastAPI proxy",
-		Commands: []*cli.Command{
-			{
-				Name:  "get",
-				Usage: "Direct GET to FastAPI proxy, prints raw JSON",
-				Arguments: []cli.Argument{
-					&cli.StringArg{
-						Name: "path",
-					},
-				},
-				Flags: []cli.Flag{
-					&cli.BoolFlag{
-						Name:  "json",
-						Usage: "Output raw JSON",
-						Value: true,
-					},
-				},
-				Action: r.APIGet,
-			},
-			{
-				Name:  "post",
-				Usage: "Direct POST with JSON body",
-				Arguments: []cli.Argument{
-					&cli.StringArg{
-						Name: "path",
-					},
-				},
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:     "data",
-						Aliases:  []string{"d"},
-						Usage:    "JSON body to send",
-						Required: true,
-					},
-				},
-				Action: r.APIPost,
-			},
-			{
-				Name:  "dump",
-				Usage: "Full proxy state dump (cached playlists, songs, etc)",
-				Flags: []cli.Flag{
-					&cli.BoolFlag{
-						Name:  "pretty",
-						Usage: "Pretty-print output",
-						Value: true,
-					},
-					&cli.BoolFlag{
-						Name:  "save",
-						Usage: "Save dump to api_dump.json",
-						Value: false,
-					},
-				},
-				Action: r.APIDump,
-			},
-		},
-	}
 }

@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/BurntSushi/toml"
+	"golang.org/x/oauth2"
 )
 
 //go:embed config.example.toml
@@ -58,6 +59,22 @@ func (s SpotifyConfig) Map() map[string]string {
 		"client_id":     s.ClientID,
 		"client_secret": s.ClientSecret,
 		"redirect_uri":  s.RedirectURI,
+	}
+}
+
+// Update updates spotify tokens
+//
+// TODO: define error types
+func (s *SpotifyConfig) Update(t *oauth2.Token) error {
+	s.AccessToken = t.AccessToken
+	s.RefreshToken = t.RefreshToken
+	return nil
+}
+
+func (s *SpotifyConfig) Token() *oauth2.Token {
+	return &oauth2.Token{
+		AccessToken:  s.AccessToken,
+		RefreshToken: s.RefreshToken,
 	}
 }
 

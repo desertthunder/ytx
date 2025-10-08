@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,42 +10,21 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func validateJSON(data []byte) error {
-	var jsonTest any
-	if err := json.Unmarshal(data, &jsonTest); err != nil {
-		return fmt.Errorf("%w: file is not valid JSON", shared.ErrInvalidInput)
-	} else {
-		return nil
-	}
-}
-
-func verifyAndRead(p string) ([]byte, error) {
-	if _, err := os.Stat(p); os.IsNotExist(err) {
-		return []byte{}, fmt.Errorf("%w: file not found: %s", shared.ErrInvalidArgument, p)
-	}
-	data, err := os.ReadFile(p)
-	if err != nil {
-		return []byte{}, fmt.Errorf("failed to read file: %w", err)
-	}
-
-	return data, nil
-}
-
 // AuthLogin uploads headers_auth.json to the proxy's /auth/upload endpoint.
 func (r *Runner) AuthLogin(ctx context.Context, cmd *cli.Command) error {
 	filePath := cmd.StringArg("path")
-	fileData, err := verifyAndRead(filePath)
+	fileData, err := shared.VerifyAndReadFile(filePath)
 	authDir := filepath.Join(os.Getenv("HOME"), ".ytx")
 
 	if err != nil {
 		return err
 	}
 
-	if err := validateJSON(fileData); err != nil {
+	if err := shared.ValidateJSON(fileData); err != nil {
 		return err
 	}
 
-	r.logger.Info("uploading auth headers", "file", filePath)
+	r.logger.Infof("uploading auth headers to %v", filePath)
 
 	resp, err := r.api.UploadJSON(ctx, "/auth/upload", fileData)
 	if err != nil {
@@ -60,13 +38,13 @@ func (r *Runner) AuthLogin(ctx context.Context, cmd *cli.Command) error {
 	r.logger.Info("authentication successful")
 
 	if err := os.MkdirAll(authDir, 0755); err != nil {
-		r.logger.Warn("failed to create auth directory", "error", err)
+		r.logger.Warnf("failed to create auth director %v", err)
 	} else {
 		destPath := filepath.Join(authDir, "headers_auth.json")
 		if err := os.WriteFile(destPath, fileData, 0600); err != nil {
-			r.logger.Warn("failed to save auth file", "error", err)
+			r.logger.Warnf("failed to save auth file %v", err)
 		} else {
-			r.logger.Info("auth file saved", "path", destPath)
+			r.logger.Infof("auth file saved to %v", destPath)
 		}
 	}
 
@@ -115,27 +93,4 @@ func (r *Runner) AuthStatus(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	return fmt.Errorf("%w: status %d", shared.ErrServiceUnavailable, resp.StatusCode)
-}
-
-// authCommand handles authentication operations
-func authCommand(r *Runner) *cli.Command {
-	return &cli.Command{
-		Name:  "auth",
-		Usage: "Manage authentication",
-		Commands: []*cli.Command{
-			{
-				Name:  "login",
-				Usage: "Upload headers_auth.json to FastAPI /auth/upload endpoint",
-				Arguments: []cli.Argument{
-					&cli.StringArg{Name: "path"},
-				},
-				Action: r.AuthLogin,
-			},
-			{
-				Name:   "status",
-				Usage:  "Check current authentication state (calls /health)",
-				Action: r.AuthStatus,
-			},
-		},
-	}
 }

@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/desertthunder/ytx/internal/models"
+	"golang.org/x/oauth2"
 )
 
 // Service defines the interface for music service providers (Spotify, YouTube Music) that can export and import playlists and songs.
@@ -25,4 +26,10 @@ type Service interface {
 	SearchTrack(ctx context.Context, title, artist string) (*models.Track, error)
 	// Name returns the name of the service (e.g., "Spotify", "YouTube Music")
 	Name() string
+}
+
+type OAuthService interface {
+	GetAuthURL(state string) string
+	GetOAuthConfig() *oauth2.Config
+	OAuthenticate(ctx context.Context, credentials *oauth2.Token) error
 }

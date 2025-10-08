@@ -14,6 +14,7 @@ var (
 	// Authentication errors
 	ErrAuthFailed       = fmt.Errorf("authentication failed")
 	ErrNotAuthenticated = fmt.Errorf("not authenticated")
+	ErrTokenExpired     = fmt.Errorf("access token expired")
 	ErrTimeout          = fmt.Errorf("operation timed out")
 
 	// API and service errors

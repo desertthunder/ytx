@@ -26,8 +26,8 @@ type Runner struct {
 	engine     *tasks.PlaylistEngine
 }
 
-// RunnerConfig contains configuration options for creating a Runner.
-type RunnerConfig struct {
+// RunnerOpts contains configuration options for creating a Runner.
+type RunnerOpts struct {
 	Config     *shared.Config
 	Spotify    services.Service
 	YouTube    services.Service
@@ -38,30 +38,30 @@ type RunnerConfig struct {
 }
 
 // NewRunner creates a new Runner with the provided configuration
-func NewRunner(cfg RunnerConfig) *Runner {
-	if cfg.Config == nil {
-		cfg.Config = shared.DefaultConfig()
+func NewRunner(opts RunnerOpts) *Runner {
+	if opts.Config == nil {
+		opts.Config = shared.DefaultConfig()
 	}
-	if cfg.Logger == nil {
-		cfg.Logger = shared.NewLogger(nil)
+	if opts.Logger == nil {
+		opts.Logger = shared.NewLogger(nil)
 	}
-	if cfg.Output == nil {
-		cfg.Output = os.Stdout
+	if opts.Output == nil {
+		opts.Output = os.Stdout
 	}
-	if cfg.HTTPClient == nil {
-		cfg.HTTPClient = http.DefaultClient
+	if opts.HTTPClient == nil {
+		opts.HTTPClient = http.DefaultClient
 	}
 
-	engine := tasks.NewPlaylistEngine(cfg.Spotify, cfg.YouTube, cfg.API)
+	engine := tasks.NewPlaylistEngine(opts.Spotify, opts.YouTube, opts.API)
 
 	return &Runner{
-		config:     cfg.Config,
-		spotify:    cfg.Spotify,
-		youtube:    cfg.YouTube,
-		api:        cfg.API,
-		httpClient: cfg.HTTPClient,
-		logger:     cfg.Logger,
-		output:     cfg.Output,
+		config:     opts.Config,
+		spotify:    opts.Spotify,
+		youtube:    opts.YouTube,
+		api:        opts.API,
+		httpClient: opts.HTTPClient,
+		logger:     opts.Logger,
+		output:     opts.Output,
 		engine:     engine,
 	}
 }
@@ -104,6 +104,14 @@ func (r *Runner) writeJSON(data any, pretty bool) error {
 
 func (r *Runner) writePlain(format string, args ...any) error {
 	text := fmt.Sprintf(format, args...)
+	if _, err := r.output.Write([]byte(text)); err != nil {
+		return fmt.Errorf("failed to write output: %w", err)
+	}
+	return nil
+}
+
+func (r *Runner) writePlainln(format string, args ...any) error {
+	text := "\n" + fmt.Sprintf(format, args...) + "\n"
 	if _, err := r.output.Write([]byte(text)); err != nil {
 		return fmt.Errorf("failed to write output: %w", err)
 	}

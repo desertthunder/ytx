@@ -29,12 +29,12 @@ func (r *Runner) TransferRun(ctx context.Context, cmd *cli.Command) error {
 				r.writePlain("📥 %s\n", update.Message)
 			case tasks.SearchTracks:
 				if update.Step == 0 {
-					r.writePlain("\n🔍 %s\n", update.Message)
+					r.writePlainln("🔍 %s", update.Message)
 				} else {
 					r.writePlain("   %s\n", update.Message)
 				}
 			case tasks.CreatePlaylist:
-				r.writePlain("\n📝 %s\n", update.Message)
+				r.writePlainln("📝 %s", update.Message)
 			}
 		}
 	}()
@@ -52,7 +52,7 @@ func (r *Runner) TransferRun(ctx context.Context, cmd *cli.Command) error {
 	r.writePlain("Success rate: %d/%d (%.1f%%)\n", result.SuccessCount, result.TotalTracks, result.MatchPercentage)
 
 	if result.FailedCount > 0 {
-		r.writePlain("\nFailed to match %d tracks:\n", result.FailedCount)
+		r.writePlainln("Failed to match %d tracks:", result.FailedCount)
 		for _, match := range result.TrackMatches {
 			if match.Error != nil {
 				r.writePlain("  - %s - %s\n", match.Original.Artist, match.Original.Title)
@@ -70,7 +70,7 @@ func (r *Runner) TransferDiff(ctx context.Context, cmd *cli.Command) error {
 	sourceService := cmd.String("source-service")
 	destService := cmd.String("dest-service")
 
-	r.logger.Info("transfer diff requested", "source", sourceID, "dest", destID)
+	r.logger.Infof("transfer diff requested source: %v dest %v", sourceID, destID)
 	r.writePlain("Comparing playlists...\n\n")
 
 	srcService, err := r.resolveService(sourceService)
@@ -96,7 +96,7 @@ func (r *Runner) TransferDiff(ctx context.Context, cmd *cli.Command) error {
 		return err
 	}
 
-	r.writePlain("\n✓ Source: %s (%d tracks)\n", result.Comparison.SourcePlaylist.Playlist.Name, len(result.Comparison.SourcePlaylist.Tracks))
+	r.writePlainln("✓ Source: %s (%d tracks)", result.Comparison.SourcePlaylist.Playlist.Name, len(result.Comparison.SourcePlaylist.Tracks))
 	r.writePlain("✓ Destination: %s (%d tracks)\n\n", result.Comparison.DestPlaylist.Playlist.Name, len(result.Comparison.DestPlaylist.Tracks))
 
 	r.writePlainHeader("Comparison Results")
@@ -150,8 +150,8 @@ func (r *Runner) TransferUI(ctx context.Context, cmd *cli.Command) error {
 }
 
 // resolveService resolves a service name to its corresponding Service instance.
-func (r *Runner) resolveService(serviceName string) (services.Service, error) {
-	switch serviceName {
+func (r *Runner) resolveService(name string) (services.Service, error) {
+	switch name {
 	case "spotify":
 		if r.spotify == nil {
 			return nil, fmt.Errorf("%w: Spotify service not initialized", shared.ErrServiceUnavailable)
@@ -163,62 +163,6 @@ func (r *Runner) resolveService(serviceName string) (services.Service, error) {
 		}
 		return r.youtube, nil
 	default:
-		return nil, fmt.Errorf("%w: invalid service '%s' (must be 'spotify' or 'youtube')", shared.ErrInvalidArgument, serviceName)
-	}
-}
-
-// transferCommand handles playlist transfer operations (v0.6 stubs)
-func transferCommand(r *Runner) *cli.Command {
-	return &cli.Command{
-		Name:  "transfer",
-		Usage: "Transfer playlists between services",
-		Commands: []*cli.Command{
-			{
-				Name:  "run",
-				Usage: "Run full Spotify → YouTube Music sync",
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:     "source",
-						Usage:    "Source playlist name or ID",
-						Required: true,
-					},
-				},
-				Action: r.TransferRun,
-			},
-			{
-				Name:  "ui",
-				Usage: "Interactive TUI for playlist transfer",
-				Action: r.TransferUI,
-			},
-			{
-				Name:  "diff",
-				Usage: "Compare and show missing tracks between two playlists",
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:     "source-id",
-						Usage:    "Source playlist ID",
-						Required: true,
-					},
-					&cli.StringFlag{
-						Name:     "dest-id",
-						Usage:    "Destination playlist ID",
-						Required: true,
-					},
-					&cli.StringFlag{
-						Name:     "source-service",
-						Usage:    "Source service (spotify or youtube)",
-						Value:    "spotify",
-						Required: false,
-					},
-					&cli.StringFlag{
-						Name:     "dest-service",
-						Usage:    "Destination service (spotify or youtube)",
-						Value:    "youtube",
-						Required: false,
-					},
-				},
-				Action: r.TransferDiff,
-			},
-		},
+		return nil, fmt.Errorf("%w: invalid service '%s' (must be 'spotify' or 'youtube')", shared.ErrInvalidArgument, name)
 	}
 }

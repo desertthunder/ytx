@@ -220,9 +220,13 @@ func NewSpotifyService(credentials map[string]string) (*SpotifyService, error) {
 }
 
 // Authenticate performs OAuth2 authentication with Spotify. Expects either an "access_token" or "auth_code" in credentials.
+// Optionally accepts a "refresh_token" to enable automatic token refresh.
 func (s *SpotifyService) Authenticate(ctx context.Context, credentials map[string]string) error {
 	if accessToken, ok := credentials["access_token"]; ok && accessToken != "" {
-		s.token = &oauth2.Token{AccessToken: accessToken}
+		s.token = &oauth2.Token{
+			AccessToken:  accessToken,
+			RefreshToken: credentials["refresh_token"], // May be empty
+		}
 		s.httpClient = s.config.Client(ctx, s.token)
 		return nil
 	}
@@ -254,10 +258,27 @@ func (s *SpotifyService) GetAuthURL(state string) string {
 	return s.config.AuthCodeURL(state, oauth2.AccessTypeOffline)
 }
 
+// GetToken returns the current OAuth2 token (may have been refreshed automatically).
+func (s *SpotifyService) GetToken() *oauth2.Token {
+	return s.token
+}
+
+// OAuthenticate authenticates the service using an OAuth2 token directly.
+// Implements the OAuthService interface for reauthorization flows.
+func (s *SpotifyService) OAuthenticate(ctx context.Context, token *oauth2.Token) error {
+	if token == nil {
+		return fmt.Errorf("token cannot be nil")
+	}
+	s.token = token
+	s.httpClient = s.config.Client(ctx, s.token)
+	return nil
+}
+
 // doRequest performs an authenticated HTTP request to the Spotify API.
+// The oauth2 client automatically handles token refresh on 401 responses.
 func (s *SpotifyService) doRequest(ctx context.Context, method, endpoint string, body any, result any) error {
 	if s.token == nil {
-		return fmt.Errorf("not authenticated: call Authenticate first")
+		return fmt.Errorf("%w: call Authenticate first", shared.ErrNotAuthenticated)
 	}
 
 	apiURL := spotifyBaseURL + endpoint
@@ -281,7 +302,6 @@ func (s *SpotifyService) doRequest(ctx context.Context, method, endpoint string,
 		}
 	}
 
-	req.Header.Set("Authorization", "Bearer "+s.token.AccessToken)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.httpClient.Do(req)
@@ -289,6 +309,10 @@ func (s *SpotifyService) doRequest(ctx context.Context, method, endpoint string,
 		return fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return fmt.Errorf("%w: %s", shared.ErrTokenExpired, "Spotify returned 401 - reauthorization required")
+	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("spotify API error: status %d", resp.StatusCode)
