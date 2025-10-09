@@ -12,11 +12,13 @@ import (
 	"github.com/desertthunder/ytx/internal/shared"
 	"github.com/desertthunder/ytx/internal/tasks"
 	"github.com/urfave/cli/v3"
+	"golang.org/x/oauth2"
 )
 
 // Runner holds all dependencies for CLI commands and provides methods for each command action.
 type Runner struct {
 	config     *shared.Config
+	configPath string
 	spotify    services.Service
 	youtube    services.Service
 	api        *services.APIService
@@ -29,6 +31,7 @@ type Runner struct {
 // RunnerOpts contains configuration options for creating a Runner.
 type RunnerOpts struct {
 	Config     *shared.Config
+	ConfigPath string
 	Spotify    services.Service
 	YouTube    services.Service
 	API        *services.APIService
@@ -56,6 +59,7 @@ func NewRunner(opts RunnerOpts) *Runner {
 
 	return &Runner{
 		config:     opts.Config,
+		configPath: opts.ConfigPath,
 		spotify:    opts.Spotify,
 		youtube:    opts.YouTube,
 		api:        opts.API,
@@ -122,4 +126,31 @@ func (r *Runner) writePlainHeader(title string) {
 	r.writePlain("═══════════════════════════════════════\n")
 	r.writePlain("%v\n", title)
 	r.writePlain("═══════════════════════════════════════\n")
+}
+
+// SetLogger replaces the runner's logger with a new instance.
+//
+// This is useful for redirecting logs to a file when running the TUI.
+func (r *Runner) SetLogger(logger *log.Logger) {
+	r.logger = logger
+}
+
+// saveTokens updates the config with new tokens and persists to disk
+func (r *Runner) saveTokens(token *oauth2.Token) error {
+	if r.config == nil {
+		return fmt.Errorf("config is nil")
+	}
+
+	if err := r.config.Credentials.Spotify.Update(token); err != nil {
+		return fmt.Errorf("failed to update spotify configuration: %w", err)
+	}
+
+	if r.configPath != "" {
+		if err := shared.SaveConfig(r.configPath, r.config); err != nil {
+			return fmt.Errorf("failed to save config: %w", err)
+		}
+		r.logger.Debugf("saved refreshed tokens to %s", r.configPath)
+	}
+
+	return nil
 }

@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/desertthunder/ytx/internal/services"
 	"github.com/desertthunder/ytx/internal/shared"
 	tu "github.com/desertthunder/ytx/internal/testing"
+	"golang.org/x/oauth2"
 )
 
 func TestRunner(t *testing.T) {
@@ -93,6 +95,26 @@ func TestRunner(t *testing.T) {
 
 			if runner.httpClient != http.DefaultClient {
 				t.Error("expected httpClient to default to http.DefaultClient")
+			}
+		})
+
+		t.Run("with configPath sets field", func(t *testing.T) {
+			runner := NewRunner(RunnerOpts{
+				ConfigPath: "/test/path/config.toml",
+			})
+
+			if runner.configPath != "/test/path/config.toml" {
+				t.Errorf("expected configPath to be set, got %s", runner.configPath)
+			}
+		})
+
+		t.Run("with empty configPath", func(t *testing.T) {
+			runner := NewRunner(RunnerOpts{
+				ConfigPath: "",
+			})
+
+			if runner.configPath != "" {
+				t.Errorf("expected empty configPath, got %s", runner.configPath)
 			}
 		})
 	})
@@ -244,5 +266,156 @@ func TestRunner(t *testing.T) {
 				t.Errorf("command at index %d is nil", i)
 			}
 		}
+	})
+
+	t.Run("saveTokens", func(t *testing.T) {
+		t.Run("saves tokens successfully", func(t *testing.T) {
+			tmpDir := t.TempDir()
+			configPath := filepath.Join(tmpDir, "config.toml")
+
+			config := shared.DefaultConfig()
+			config.Credentials.Spotify.ClientID = "test_id"
+			config.Credentials.Spotify.ClientSecret = "test_secret"
+
+			if err := shared.SaveConfig(configPath, config); err != nil {
+				t.Fatalf("failed to create test config: %v", err)
+			}
+
+			runner := NewRunner(RunnerOpts{
+				Config:     config,
+				ConfigPath: configPath,
+			})
+
+			token := &oauth2.Token{
+				AccessToken:  "new_access_token",
+				RefreshToken: "new_refresh_token",
+			}
+
+			err := runner.saveTokens(token)
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+
+			loadedConfig, err := shared.LoadConfig(configPath)
+			if err != nil {
+				t.Fatalf("failed to reload config: %v", err)
+			}
+
+			if loadedConfig.Credentials.Spotify.AccessToken != "new_access_token" {
+				t.Errorf("expected access token to be updated, got %s", loadedConfig.Credentials.Spotify.AccessToken)
+			}
+			if loadedConfig.Credentials.Spotify.RefreshToken != "new_refresh_token" {
+				t.Errorf("expected refresh token to be updated, got %s", loadedConfig.Credentials.Spotify.RefreshToken)
+			}
+		})
+
+		t.Run("handles nil config error", func(t *testing.T) {
+			runner := NewRunner(RunnerOpts{
+				Config:     nil,
+				ConfigPath: "/tmp/test.toml",
+			})
+
+			runner.config = nil
+
+			token := &oauth2.Token{AccessToken: "test"}
+			err := runner.saveTokens(token)
+
+			if err == nil {
+				t.Fatal("expected error with nil config")
+			}
+			if !strings.Contains(err.Error(), "config is nil") {
+				t.Errorf("expected nil config error, got %v", err)
+			}
+		})
+
+		t.Run("handles empty configPath", func(t *testing.T) {
+			config := shared.DefaultConfig()
+			runner := NewRunner(RunnerOpts{
+				Config:     config,
+				ConfigPath: "",
+			})
+
+			token := &oauth2.Token{
+				AccessToken:  "new_token",
+				RefreshToken: "new_refresh",
+			}
+
+			err := runner.saveTokens(token)
+			if err != nil {
+				t.Fatalf("expected no error with empty path, got %v", err)
+			}
+
+			if config.Credentials.Spotify.AccessToken != "new_token" {
+				t.Error("expected config to be updated in memory")
+			}
+		})
+
+		t.Run("handles SaveConfig failure", func(t *testing.T) {
+			config := shared.DefaultConfig()
+			invalidPath := "/root/readonly/impossible/config.toml"
+
+			runner := NewRunner(RunnerOpts{
+				Config:     config,
+				ConfigPath: invalidPath,
+			})
+
+			token := &oauth2.Token{AccessToken: "test"}
+			err := runner.saveTokens(token)
+
+			if err == nil {
+				t.Fatal("expected error with invalid path")
+			}
+			if !strings.Contains(err.Error(), "failed to save config") {
+				t.Errorf("expected save config error, got %v", err)
+			}
+		})
+
+		t.Run("handles Update error", func(t *testing.T) {
+			tmpDir := t.TempDir()
+			configPath := filepath.Join(tmpDir, "config.toml")
+
+			config := shared.DefaultConfig()
+			runner := NewRunner(RunnerOpts{
+				Config:     config,
+				ConfigPath: configPath,
+			})
+
+			err := runner.saveTokens(nil)
+			if err == nil {
+				t.Fatal("expected error when Update fails with nil token")
+			}
+			if !strings.Contains(err.Error(), "failed to update spotify configuration") {
+				t.Errorf("expected update error, got %v", err)
+			}
+			if !strings.Contains(err.Error(), "token cannot be nil") {
+				t.Errorf("expected nil token error in chain, got %v", err)
+			}
+		})
+
+		t.Run("updates config reference", func(t *testing.T) {
+			config := shared.DefaultConfig()
+			runner := NewRunner(RunnerOpts{
+				Config:     config,
+				ConfigPath: "",
+			})
+
+			originalAccess := config.Credentials.Spotify.AccessToken
+			token := &oauth2.Token{
+				AccessToken:  "updated_access",
+				RefreshToken: "updated_refresh",
+			}
+
+			err := runner.saveTokens(token)
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+
+			if runner.config.Credentials.Spotify.AccessToken == originalAccess {
+				t.Error("expected config reference to be updated")
+			}
+			if runner.config.Credentials.Spotify.AccessToken != "updated_access" {
+				t.Errorf("expected updated access token in runner config")
+			}
+		})
 	})
 }

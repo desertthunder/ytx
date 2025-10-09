@@ -63,9 +63,10 @@ func (s SpotifyConfig) Map() map[string]string {
 }
 
 // Update updates spotify tokens
-//
-// TODO: define error types
 func (s *SpotifyConfig) Update(t *oauth2.Token) error {
+	if t == nil {
+		return fmt.Errorf("token cannot be nil")
+	}
 	s.AccessToken = t.AccessToken
 	s.RefreshToken = t.RefreshToken
 	return nil

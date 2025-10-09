@@ -19,6 +19,13 @@ func (r *Runner) TUI(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("%w: transfer engine not initialized", shared.ErrServiceUnavailable)
 	}
 
+	// Redirect logs to file to avoid interfering with TUI rendering
+	fileLogger, err := shared.NewFileLogger("./tmp/ytx-tui.log")
+	if err != nil {
+		return fmt.Errorf("failed to create file logger: %w", err)
+	}
+	r.SetLogger(fileLogger)
+
 	model := ui.NewModel(ctx, r.spotify, r.engine)
 	p := tea.NewProgram(model)
 

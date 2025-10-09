@@ -308,7 +308,12 @@ func (r *Runner) handleSpotifyAuthError(ctx context.Context, err error, cmd *cli
 		return false, err
 	}
 
-	r.writePlainln("⚠ Authentication token expired. Starting reauthorization...\n")
+	hasRefreshToken := r.config != nil && r.config.Credentials.Spotify.RefreshToken != ""
+	if hasRefreshToken {
+		r.writePlainln("⚠ Token expired. Automatic refresh failed, opening browser for re-authentication...\n")
+	} else {
+		r.writePlainln("⚠ No refresh token found. Opening browser for authentication...\n")
+	}
 
 	configPath := cmd.String("config")
 	if configPath == "" {

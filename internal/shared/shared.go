@@ -27,6 +27,25 @@ func NewLogger(w io.Writer) *log.Logger {
 	return log.NewWithOptions(w, opts)
 }
 
+// NewFileLogger creates a new [log.Logger] that writes to a file at the given path.
+//
+// If the directory doesn't exist, it will be created. The logger uses the same
+// timestamp and caller reporting settings as [NewLogger].
+func NewFileLogger(path string) (*log.Logger, error) {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create log directory: %w", err)
+	}
+
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open log file: %w", err)
+	}
+
+	opts := log.Options{ReportTimestamp: true, ReportCaller: true, TimeFormat: time.Kitchen, Level: log.DebugLevel}
+	return log.NewWithOptions(file, opts), nil
+}
+
 // WithLogger creates a child [log.Logger] with the specified key-value pairs added to all log entries.
 func WithLogger(l *log.Logger, kv ...any) *log.Logger {
 	return l.With(kv...)

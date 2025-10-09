@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -22,6 +23,7 @@ const (
 	ConfirmView
 	TransferView
 	ResultView
+	AuthErrorView
 )
 
 // Model represents the TUI application state.
@@ -40,6 +42,8 @@ type Model struct {
 	progress         tasks.ProgressUpdate
 	result           *tasks.TransferRunResult
 	err              error
+	authErrorMsg     string
+	previousView     ViewState
 	help             help.Model
 	keys             keyMap
 }
@@ -182,6 +186,8 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleConfirmKeys(msg)
 	case ResultView:
 		return m.handleResultKeys(msg)
+	case AuthErrorView:
+		return m.handleAuthErrorKeys(msg)
 	}
 	return m, nil
 }
@@ -194,6 +200,12 @@ func (m *Model) handlePlaylistsFetched(msg Msg) (tea.Model, tea.Cmd) {
 
 	if data.err != nil {
 		m.err = data.err
+		if m.isAuthError(data.err) {
+			m.authErrorMsg = data.err.Error()
+			m.previousView = PlaylistListView
+			m.view = AuthErrorView
+			return m, nil
+		}
 		return m, tea.Quit
 	}
 
@@ -217,6 +229,13 @@ func (m *Model) handleTracksFetched(msg Msg) (tea.Model, tea.Cmd) {
 
 	if data.err != nil {
 		m.err = data.err
+		// Check if this is an auth error
+		if m.isAuthError(data.err) {
+			m.authErrorMsg = data.err.Error()
+			m.previousView = PlaylistListView
+			m.view = AuthErrorView
+			return m, nil
+		}
 		m.view = PlaylistListView
 		return m, nil
 	}
@@ -258,7 +277,7 @@ func (m *Model) handleTransferComplete(msg Msg) (tea.Model, tea.Cmd) {
 
 // View renders the UI based on the current view state.
 func (m *Model) View() string {
-	if m.err != nil && m.view != ResultView {
+	if m.err != nil && m.view != ResultView && m.view != AuthErrorView {
 		return styles.err.Render(fmt.Sprintf("Error: %v\n\nPress q to quit", m.err))
 	}
 
@@ -273,6 +292,8 @@ func (m *Model) View() string {
 		return m.renderTransfer()
 	case ResultView:
 		return m.renderResult()
+	case AuthErrorView:
+		return m.renderAuthError()
 	default:
 		return ""
 	}
@@ -337,6 +358,42 @@ func (m *Model) handleResultKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, nil
+}
+
+func (m *Model) handleAuthErrorKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		return m, tea.Quit
+	case "r":
+		// Retry the operation that failed
+		m.view = m.previousView
+		m.err = nil
+		m.authErrorMsg = ""
+
+		// Re-fetch based on previous view
+		if m.previousView == PlaylistListView {
+			return m, m.fetchPlaylists()
+		}
+		return m, nil
+	case "esc":
+		// Go back to previous view without retrying
+		m.view = m.previousView
+		m.err = nil
+		m.authErrorMsg = ""
+		return m, nil
+	}
+	return m, nil
+}
+
+func (m *Model) isAuthError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := strings.ToLower(err.Error())
+	return strings.Contains(errStr, "token") ||
+		strings.Contains(errStr, "auth") ||
+		strings.Contains(errStr, "401") ||
+		strings.Contains(errStr, "unauthorized")
 }
 
 func (m *Model) updateLists(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -461,4 +518,35 @@ func (m *Model) renderResult() string {
 	helpView := m.help.ShortHelpView(helpKeys)
 
 	return fmt.Sprintf("%s\n%s%s\n\n%s", title, info, failed, helpView)
+}
+
+func (m *Model) renderAuthError() string {
+	title := styles.err.Render("⚠ Authentication Error")
+
+	var message string
+	if m.authErrorMsg != "" {
+		message = fmt.Sprintf("\n%s\n", m.authErrorMsg)
+	} else {
+		message = "\nYour Spotify authentication has expired.\n"
+	}
+
+	instructions := `
+To fix this issue:
+1. Exit the TUI (press 'q')
+2. Run: ytx spotify auth
+3. Follow the browser authentication flow
+4. Re-launch the TUI
+
+Alternatively:
+- Press 'r' to retry (if token was auto-refreshed)
+- Press 'esc' to go back
+- Press 'q' to quit
+`
+
+	retryKey := key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "retry"))
+	backKey := key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back"))
+	helpKeys := []key.Binding{retryKey, backKey, m.keys.quit}
+	helpView := m.help.ShortHelpView(helpKeys)
+
+	return fmt.Sprintf("%s\n%s\n%s\n\n%s", title, message, instructions, helpView)
 }

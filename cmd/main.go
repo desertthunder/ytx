@@ -7,7 +7,9 @@ import (
 
 	"github.com/desertthunder/ytx/internal/services"
 	"github.com/desertthunder/ytx/internal/shared"
+	"github.com/desertthunder/ytx/internal/tasks"
 	"github.com/urfave/cli/v3"
+	"golang.org/x/oauth2"
 )
 
 func main() {
@@ -16,9 +18,10 @@ func main() {
 
 	logger := shared.NewLogger(nil)
 	config := shared.DefaultConfig()
+	configPath := "config.toml"
 
-	if _, err := os.Stat("config.toml"); err == nil {
-		if loadedConfig, err := shared.LoadConfig("config.toml"); err == nil {
+	if _, err := os.Stat(configPath); err == nil {
+		if loadedConfig, err := shared.LoadConfig(configPath); err == nil {
 			config = loadedConfig
 		}
 	}
@@ -30,6 +33,8 @@ func main() {
 
 			if config.Credentials.Spotify.AccessToken != "" {
 				ctx := context.Background()
+				creds["access_token"] = config.Credentials.Spotify.AccessToken
+				creds["refresh_token"] = config.Credentials.Spotify.RefreshToken
 				if err := svc.Authenticate(ctx, creds); err != nil {
 					logger.Warnf("failed to authenticate with stored token %v", err)
 				} else {
@@ -37,6 +42,25 @@ func main() {
 				}
 			}
 		}
+	}
+
+	rconf := RunnerOpts{
+		Config:     config,
+		ConfigPath: configPath,
+		Spotify:    spot,
+		YouTube:    nil,
+		API:        nil,
+		Logger:     logger,
+	}
+	runner := NewRunner(rconf)
+
+	if spotifyService, ok := spot.(*services.SpotifyService); ok && spot != nil {
+		spotifyService.SetTokenRefreshCallback(func(token *oauth2.Token) {
+			logger.Info("token refreshed, saving to config")
+			if err := runner.saveTokens(token); err != nil {
+				logger.Warnf("failed to save refreshed tokens: %v", err)
+			}
+		})
 	}
 
 	yt = services.NewYouTubeService(config.Credentials.YouTube.ProxyURL)
@@ -65,14 +89,9 @@ func main() {
 		}
 	}
 
-	rconf := RunnerOpts{
-		Config:  config,
-		Spotify: spot,
-		YouTube: yt,
-		API:     api,
-		Logger:  logger,
-	}
-	runner := NewRunner(rconf)
+	runner.youtube = yt
+	runner.api = api
+	runner.engine = tasks.NewPlaylistEngine(spot, yt, api)
 
 	app := &cli.Command{
 		Name:     "ytx",

@@ -166,14 +166,47 @@ type SpotifySearchResults struct {
 	} `json:"tracks"`
 }
 
+// tokenRefreshCallback is called when a token is refreshed by the TokenSource
+type tokenRefreshCallback func(*oauth2.Token)
+
+// refreshableTokenSource wraps an oauth2.TokenSource to intercept token refreshes
+type refreshableTokenSource struct {
+	source    oauth2.TokenSource
+	callback  tokenRefreshCallback
+	lastToken *oauth2.Token
+}
+
+func (r *refreshableTokenSource) Token() (*oauth2.Token, error) {
+	token, err := r.source.Token()
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if token was refreshed (access token changed)
+	if r.lastToken == nil || r.lastToken.AccessToken != token.AccessToken {
+		if r.callback != nil {
+			r.callback(token)
+		}
+		r.lastToken = token
+	}
+
+	return token, nil
+}
+
 // SpotifyService implements the Service interface for Spotify API interactions.
 //
 // Uses [oauth2] for authentication and provides methods for playlist and track operations.
 type SpotifyService struct {
-	config      *oauth2.Config
-	token       *oauth2.Token
-	httpClient  *http.Client
-	credentials map[string]string
+	config         *oauth2.Config
+	token          *oauth2.Token
+	httpClient     *http.Client
+	credentials    map[string]string
+	onTokenRefresh tokenRefreshCallback
+}
+
+// SetTokenRefreshCallback sets a callback to be invoked when tokens are refreshed
+func (s *SpotifyService) SetTokenRefreshCallback(callback tokenRefreshCallback) {
+	s.onTokenRefresh = callback
 }
 
 // NewSpotifyService creates a new Spotify service with the given OAuth2 credentials.
@@ -219,15 +252,16 @@ func NewSpotifyService(credentials map[string]string) (*SpotifyService, error) {
 	}, nil
 }
 
-// Authenticate performs OAuth2 authentication with Spotify. Expects either an "access_token" or "auth_code" in credentials.
-// Optionally accepts a "refresh_token" to enable automatic token refresh.
+// Authenticate performs OAuth2 authentication with Spotify.
+//
+// Expects either an "access_token" or "auth_code" in credentials. Optionally accepts a "refresh_token" to enable automatic token refresh.
 func (s *SpotifyService) Authenticate(ctx context.Context, credentials map[string]string) error {
 	if accessToken, ok := credentials["access_token"]; ok && accessToken != "" {
 		s.token = &oauth2.Token{
 			AccessToken:  accessToken,
 			RefreshToken: credentials["refresh_token"], // May be empty
 		}
-		s.httpClient = s.config.Client(ctx, s.token)
+		s.httpClient = s.createClientWithRefreshCallback(ctx, s.token)
 		return nil
 	}
 
@@ -237,11 +271,26 @@ func (s *SpotifyService) Authenticate(ctx context.Context, credentials map[strin
 			return fmt.Errorf("failed to exchange auth code: %w", err)
 		}
 		s.token = token
-		s.httpClient = s.config.Client(ctx, s.token)
+		s.httpClient = s.createClientWithRefreshCallback(ctx, s.token)
 		return nil
 	}
 
 	return fmt.Errorf("missing access_token or auth_code in credentials")
+}
+
+// createClientWithRefreshCallback creates an HTTP client with a TokenSource that captures token refreshes
+func (s *SpotifyService) createClientWithRefreshCallback(ctx context.Context, token *oauth2.Token) *http.Client {
+	tokenSource := s.config.TokenSource(ctx, token)
+
+	if s.onTokenRefresh != nil {
+		tokenSource = &refreshableTokenSource{
+			source:    tokenSource,
+			callback:  s.onTokenRefresh,
+			lastToken: token,
+		}
+	}
+
+	return oauth2.NewClient(ctx, tokenSource)
 }
 
 func (s *SpotifyService) Name() string {
@@ -270,7 +319,7 @@ func (s *SpotifyService) OAuthenticate(ctx context.Context, token *oauth2.Token)
 		return fmt.Errorf("token cannot be nil")
 	}
 	s.token = token
-	s.httpClient = s.config.Client(ctx, s.token)
+	s.httpClient = s.createClientWithRefreshCallback(ctx, s.token)
 	return nil
 }
 
