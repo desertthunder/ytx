@@ -121,7 +121,7 @@ ytx api dump
 | -------------- | ------------------------------------------------------ |
 | `ytx api dump` | Full proxy state dump (playlists, songs, albums, etc) |
 
-### v0.3
+### v0.3 ✓
 
 | Feature   | Description                                    |
 | --------- | ---------------------------------------------- |
@@ -132,15 +132,79 @@ ytx api dump
 
 ### v0.4
 
-- Better, more accurate error handling
-- Make help view with key binding implementation more composable
-
 | Feature       | Description                                  |
 | ------------- | -------------------------------------------- |
 | `ytx doctor`  | Runs health checks against FastAPI endpoints |
 | `ytx version` | Shows CLI + proxy versions                   |
 
+- Better, more accurate error handling
+    - Application shows "no match" when there should be an error or warning about the proxy server's health & status
+- Make help view with key binding implementation more composable
+
 ### v0.5
+
+| Feature   | Description                                  |
+| --------- | -------------------------------------------- |
+| `ytx web` | Launch HTMX-based web server for transfers   |
+
+| Route                      | Method | Description                                  |
+| -------------------------- | ------ | -------------------------------------------- |
+| `/`                        | GET    | Playlist list view with server-side rendering |
+| `/playlists/{id}/tracks`   | GET    | HTMX partial for track preview               |
+| `/transfer`                | POST   | Start playlist transfer                      |
+
+- Server-rendered HTML templates with HTMX for dynamic updates
+- Playlist table with interactive row selection
+- Track preview modal using HTMX partial swaps
+- Transfer confirmation workflow
+- Integration with existing services and tasks
+
+### v0.6
+
+| Route                   | Method | Description                           |
+| ----------------------- | ------ | ------------------------------------- |
+| `/transfer/{id}/stream` | GET    | SSE endpoint for real-time progress   |
+| `/transfer/{id}/result` | GET    | Final transfer results view           |
+
+- Server-Sent Events for streaming transfer progress
+- Live progress bar with phase/step updates
+- MigrationJob persistence across requests
+- Results page with matched/failed tracks breakdown
+
+### v0.7
+
+| Route                       | Method | Description                    |
+| --------------------------- | ------ | ------------------------------ |
+| `/auth/spotify`             | GET    | OAuth initiation flow          |
+| `/auth/spotify/callback`    | GET    | OAuth callback handler         |
+
+- Cookie-based session management
+- OAuth flow for Spotify authentication
+- Session middleware for protected routes
+- Automatic token refresh on expiration
+- Auth status display in navigation
+
+### v0.8
+
+| Route                      | Method | Description                                  |
+| -------------------------- | ------ | -------------------------------------------- |
+| `/setup/youtube`           | GET    | YouTube Music setup form                     |
+| `/setup/youtube/validate`  | POST   | Validate and parse cURL command              |
+| `/setup/youtube/save`      | POST   | Generate and save headers_auth.json          |
+
+- Web UI for YouTube Music authentication setup
+- Form to paste cURL command from browser DevTools
+- cURL command parsing and validation
+- Header extraction and format verification
+- Real-time validation feedback with error messages
+- Generated headers_auth.json download or server-side save
+- Integration with existing YouTube setup command logic
+
+### v0.9
+
+Kube
+
+### v1.0+
 
 | Command                                                         | Description                                             | Example                                 |
 | --------------------------------------------------------------- | ------------------------------------------------------- | --------------------------------------- |
@@ -149,8 +213,6 @@ ytx api dump
 | `ytx m[usic]b[rainz] recording "Harder Better Faster Stronger"` | Search tracks/recordings                                | Prints ISRC, duration, MBID             |
 | `ytx m[usic]b[rainz] enrich --input playlist.json`              | Enrich your Spotify playlist JSON with MusicBrainz data | Adds canonical IDs, release dates, etc. |
 | `ytx m[usic]b[rainz] browse --tag electronic`                   | Browse tagged recordings or artists                     | Category browsing                       |
-
-### v0.6
 
 | Command                                 | Description                    | Example                                   |
 | --------------------------------------- | ------------------------------ | ----------------------------------------- |
