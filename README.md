@@ -132,6 +132,9 @@ ytx api dump
 
 ### v0.4
 
+- Better, more accurate error handling
+- Make help view with key binding implementation more composable
+
 | Feature       | Description                                  |
 | ------------- | -------------------------------------------- |
 | `ytx doctor`  | Runs health checks against FastAPI endpoints |

@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/desertthunder/ytx/internal/models"
 	"github.com/desertthunder/ytx/internal/services"
@@ -18,7 +19,8 @@ import (
 type ViewState int
 
 const (
-	PlaylistListView ViewState = iota
+	LoadingView ViewState = iota
+	PlaylistListView
 	TrackListView
 	ConfirmView
 	TransferView
@@ -34,6 +36,8 @@ type Model struct {
 	engine           *tasks.PlaylistEngine
 	width            int
 	height           int
+	spinner          spinner.Model
+	loadingMsg       string
 	playlistList     list.Model
 	playlists        []models.Playlist
 	trackList        list.Model
@@ -48,73 +52,6 @@ type Model struct {
 	keys             keyMap
 }
 
-// keyMap defines the [key.Binding] mapping for the TUI.
-type keyMap struct {
-	up      key.Binding
-	down    key.Binding
-	enter   key.Binding
-	back    key.Binding
-	yes     key.Binding
-	no      key.Binding
-	restart key.Binding
-	quit    key.Binding
-}
-
-func newKeyMap() keyMap {
-	return keyMap{
-		up:      key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
-		down:    key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
-		enter:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
-		back:    key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
-		yes:     key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "yes")),
-		no:      key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "no")),
-		restart: key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "restart")),
-		quit:    key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
-	}
-}
-
-func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.quit}
-}
-
-func (k keyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{
-		{k.up, k.down, k.enter},
-		{k.back, k.yes, k.no},
-		{k.restart, k.quit},
-	}
-}
-
-// playlistItem wraps [models.Playlist] to implement list.Item.
-type playlistItem struct {
-	playlist models.Playlist
-}
-
-func (i playlistItem) FilterValue() string { return i.playlist.Name }
-func (i playlistItem) Title() string       { return i.playlist.Name }
-func (i playlistItem) Description() string {
-	desc := fmt.Sprintf("%d tracks", i.playlist.TrackCount)
-	if i.playlist.Description != "" {
-		desc = fmt.Sprintf("%s • %s", desc, i.playlist.Description)
-	}
-	return desc
-}
-
-// trackItem wraps [models.Track] to implement list.Item.
-type trackItem struct {
-	track models.Track
-}
-
-func (i trackItem) FilterValue() string { return i.track.Title }
-func (i trackItem) Title() string       { return i.track.Title }
-func (i trackItem) Description() string {
-	desc := i.track.Artist
-	if i.track.Album != "" {
-		desc = fmt.Sprintf("%s • %s", desc, i.track.Album)
-	}
-	return desc
-}
-
 // NewModel creates a new TUI [Model] with the provided dependencies.
 func NewModel(ctx context.Context, spotify services.Service, engine *tasks.PlaylistEngine) *Model {
 	playlistList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
@@ -122,11 +59,17 @@ func NewModel(ctx context.Context, spotify services.Service, engine *tasks.Playl
 
 	trackList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
 
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = styles.spinner
+
 	return &Model{
 		ctx:          ctx,
-		view:         PlaylistListView,
+		view:         LoadingView,
 		spotify:      spotify,
 		engine:       engine,
+		spinner:      s,
+		loadingMsg:   "Loading playlists...",
 		playlistList: playlistList,
 		trackList:    trackList,
 		help:         help.New(),
@@ -136,7 +79,7 @@ func NewModel(ctx context.Context, spotify services.Service, engine *tasks.Playl
 
 // Init initializes the TUI by fetching playlists from Spotify.
 func (m *Model) Init() tea.Cmd {
-	return m.fetchPlaylists()
+	return tea.Batch(m.fetchPlaylists(), m.spinner.Tick)
 }
 
 // Update handles incoming messages and updates the model state
@@ -161,6 +104,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	if m.view == LoadingView {
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+	}
+
 	return m.updateLists(msg)
 }
 
@@ -178,6 +127,10 @@ func (m *Model) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 
 func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.view {
+	case LoadingView:
+		if msg.String() == "q" || msg.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
 	case PlaylistListView:
 		return m.handlePlaylistListKeys(msg)
 	case TrackListView:
@@ -218,6 +171,7 @@ func (m *Model) handlePlaylistsFetched(msg Msg) (tea.Model, tea.Cmd) {
 	if m.width > 0 && m.height > 0 {
 		m.playlistList.SetSize(m.width-4, m.height-8)
 	}
+	m.view = PlaylistListView
 	return m, nil
 }
 
@@ -268,10 +222,8 @@ func (m *Model) handleTransferComplete(msg Msg) (tea.Model, tea.Cmd) {
 	m.result = data.result
 	m.err = data.err
 	m.view = ResultView
-	if m.progressChan != nil {
-		close(m.progressChan)
-		m.progressChan = nil
-	}
+	// Channel is already closed by the goroutine, just set to nil
+	m.progressChan = nil
 	return m, nil
 }
 
@@ -282,6 +234,8 @@ func (m *Model) View() string {
 	}
 
 	switch m.view {
+	case LoadingView:
+		return m.renderLoading()
 	case PlaylistListView:
 		return m.renderPlaylistList()
 	case TrackListView:
@@ -307,7 +261,9 @@ func (m *Model) handlePlaylistListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		selected := m.playlistList.SelectedItem()
 		if selected != nil {
 			if pl, ok := selected.(playlistItem); ok {
-				return m, m.fetchTracks(pl.playlist.ID)
+				m.view = LoadingView
+				m.loadingMsg = "Loading tracks..."
+				return m, tea.Batch(m.fetchTracks(pl.playlist.ID), m.spinner.Tick)
 			}
 		}
 	}
@@ -324,7 +280,7 @@ func (m *Model) handleTrackListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		m.view = PlaylistListView
 		return m, nil
-	case "enter":
+	case "t":
 		m.view = ConfirmView
 		return m, nil
 	}
@@ -448,6 +404,11 @@ func (m *Model) waitForProgress() tea.Cmd {
 	}
 }
 
+func (m *Model) renderLoading() string {
+	helpView := m.help.ShortHelpView([]key.Binding{m.keys.quit})
+	return fmt.Sprintf("\n\n  %s %s\n\n%s", m.spinner.View(), m.loadingMsg, helpView)
+}
+
 func (m *Model) renderPlaylistList() string {
 	helpKeys := []key.Binding{m.keys.enter, m.keys.quit}
 	helpView := m.help.ShortHelpView(helpKeys)
@@ -455,10 +416,7 @@ func (m *Model) renderPlaylistList() string {
 }
 
 func (m *Model) renderTrackList() string {
-	transferKey := key.NewBinding(
-		key.WithKeys("enter"),
-		key.WithHelp("enter", "transfer"),
-	)
+	transferKey := key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "transfer"))
 	helpKeys := []key.Binding{transferKey, m.keys.back, m.keys.quit}
 	helpView := m.help.ShortHelpView(helpKeys)
 	return fmt.Sprintf("%s\n\n%s", m.trackList.View(), helpView)
@@ -470,7 +428,6 @@ func (m *Model) renderConfirm() string {
 
 	helpKeys := []key.Binding{m.keys.yes, m.keys.no, m.keys.quit}
 	helpView := m.help.ShortHelpView(helpKeys)
-
 	return fmt.Sprintf("%s\n%s\n%s", title, info, helpView)
 }
 
@@ -516,7 +473,6 @@ func (m *Model) renderResult() string {
 
 	helpKeys := []key.Binding{m.keys.restart, m.keys.quit}
 	helpView := m.help.ShortHelpView(helpKeys)
-
 	return fmt.Sprintf("%s\n%s%s\n\n%s", title, info, failed, helpView)
 }
 
@@ -547,6 +503,5 @@ Alternatively:
 	backKey := key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back"))
 	helpKeys := []key.Binding{retryKey, backKey, m.keys.quit}
 	helpView := m.help.ShortHelpView(helpKeys)
-
 	return fmt.Sprintf("%s\n%s\n%s\n\n%s", title, message, instructions, helpView)
 }

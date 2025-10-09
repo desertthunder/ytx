@@ -1,6 +1,7 @@
 package ui
 
 import (
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/desertthunder/ytx/internal/models"
 	"github.com/desertthunder/ytx/internal/tasks"
 )
@@ -13,6 +14,10 @@ type Msg struct {
 	kind MsgKind
 	data any
 }
+
+var (
+	_ tea.Msg = Msg{}
+)
 
 const (
 	MsgPlaylistsFetched MsgKind = iota

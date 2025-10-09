@@ -14,20 +14,22 @@ type Painter interface {
 
 // struct Palette is a simple stylesheet built with named [lipgloss.Style] fields
 type Palette struct {
-	title lipgloss.Style
-	ok    lipgloss.Style
-	err   lipgloss.Style
-	warn  lipgloss.Style
-	help  lipgloss.Style
+	title   lipgloss.Style
+	ok      lipgloss.Style
+	err     lipgloss.Style
+	warn    lipgloss.Style
+	help    lipgloss.Style
+	spinner lipgloss.Style
 }
 
 func NewPalette(t, s, e, w, h string) *Palette {
 	return &Palette{
-		title: NewBold(t).MarginBottom(1),
-		ok:    NewBold(s),
-		err:   NewBold(e),
-		warn:  NewStyle(w),
-		help:  NewEm(h),
+		title:   NewBold(t).MarginBottom(1),
+		ok:      NewBold(s),
+		err:     NewBold(e),
+		warn:    NewStyle(w),
+		help:    NewEm(h),
+		spinner: NewStyle(t),
 	}
 }
 
