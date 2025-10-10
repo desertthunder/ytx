@@ -5,7 +5,7 @@ A FastAPI-based proxy server for YouTube Music API operations. Enables playlist 
 ## Installation
 
 ```bash
-poetry install
+uv sync
 # or with pip
 pip install -e .
 ```
@@ -67,19 +67,19 @@ curl -H "X-Auth-File: /path/to/browser.json" http://localhost:8080/api/library/p
 __Using the installed command__:
 
 ```bash
-ytmusic-proxy serve
+uv run proxy serve
 ```
 
 __With options__:
 
 ```bash
-ytmusic-proxy serve --port 9000 --reload
+uv run proxy serve --port 9000 --reload
 ```
 
 __Development mode__:
 
 ```bash
-poetry run ytmusic-proxy serve --reload
+uv run proxy serve --reload
 ```
 
 Server runs on `http://localhost:8080` by default.
@@ -195,7 +195,7 @@ See the [justfile](../justfile) in the root of the project
 __Installation__:
 
 ```bash
-poetry install
+uv sync
 ```
 
 __Linting & Formatting__:

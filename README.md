@@ -6,7 +6,7 @@ A web service to transfer playlists between Spotify & YouTube music.
 
 A FastAPI proxy around [ytmusicapi](https://github.com/sigma67/ytmusicapi) that runs on port 8080.
 
-From music, run `python -m cli`
+From music, run `uv run proxy`
 
 ## CLI
 

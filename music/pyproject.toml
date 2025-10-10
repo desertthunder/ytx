@@ -2,11 +2,9 @@
 name = "api"
 version = "0.1.0"
 description = ""
-authors = [
-    {name = "Owais Jamil",email = "desertthunder.dev@gmail.com"}
-]
-readme = "README.md"
+authors = [{ name = "Owais Jamil", email = "desertthunder.dev@gmail.com" }]
 requires-python = "<4.0,>=3.13"
+readme = "README.md"
 dependencies = [
     "typer (>=0.19.2,<0.20.0)",
     "fastapi (>=0.118.0,<0.119.0)",
@@ -14,24 +12,25 @@ dependencies = [
     "httpx (>=0.28.1,<0.29.0)",
     "uvicorn (>=0.37.0,<0.38.0)",
     "python-multipart (>=0.0.20,<0.1.0)",
-    "loguru (>=0.7.3,<0.8.0)"
+    "loguru (>=0.7.3,<0.8.0)",
 ]
 
 [project.scripts]
-ytmusic-proxy = "cli.__main__:app"
+proxy = "cli.__main__:app"
 
-[tool.poetry]
-packages = [
-    {include = "api", from = "src"},
-    {include = "cli", from = "src"}
-]
+[dependency-groups]
+dev = ["ruff>=0.13.3,<0.14.0", "pytest>=8.4.2,<9", "coverage>=7.10.7,<8"]
 
+[tool.hatch.build.targets.sdist]
+include = ["src/api", "src/cli"]
 
-[tool.poetry.group.dev.dependencies]
-ruff = "^0.13.3"
-pytest = "^8.4.2"
-coverage = "^7.10.7"
+[tool.hatch.build.targets.wheel]
+include = ["src/api", "src/cli"]
+
+[tool.hatch.build.targets.wheel.sources]
+"src/api" = "api"
+"src/cli" = "cli"
 
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
