@@ -6,6 +6,8 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
+	"testing"
 
 	"github.com/desertthunder/ytx/internal/models"
 )
@@ -83,4 +85,48 @@ func (f *FCloser) Read(p []byte) (n int, err error) {
 
 func (f *FCloser) Close() error {
 	return nil
+}
+
+func MustGetwd(t *testing.T) string {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
+	return wd
+}
+
+func MustChdir(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Failed to change directory to %s: %v", dir, err)
+	}
+}
+
+func AssertFileExists(t *testing.T, path string) {
+	t.Helper()
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Errorf("File does not exist: %s", path)
+	}
+}
+
+func AssertDirExists(t *testing.T, path string) {
+	t.Helper()
+	info, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		t.Errorf("Directory does not exist: %s", path)
+		return
+	}
+	if !info.IsDir() {
+		t.Errorf("Path is not a directory: %s", path)
+	}
+}
+
+func MustReadFile(t *testing.T, path string) string {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("Failed to read file %s: %v", path, err)
+	}
+	return string(content)
 }

@@ -38,6 +38,11 @@ func spotifyCommand(r *Runner) *cli.Command {
 						Usage: "Maximum number of playlists to return",
 						Value: 50,
 					},
+					&cli.StringFlag{
+						Name:  "user",
+						Usage: "Filter playlists by user ID (default: 'me' for current user)",
+						Value: "me",
+					},
 					&cli.BoolFlag{
 						Name:  "json",
 						Usage: "Output raw JSON",
@@ -72,6 +77,11 @@ func spotifyCommand(r *Runner) *cli.Command {
 						Name:    "output",
 						Aliases: []string{"o"},
 						Usage:   "Output file path",
+					},
+					&cli.StringFlag{
+						Name:  "format",
+						Usage: "Export format: json, csv, markdown, txt",
+						Value: "json",
 					},
 					&cli.BoolFlag{
 						Name:  "json",

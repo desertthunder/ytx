@@ -128,3 +128,18 @@ func VerifyAndReadFile(p string) ([]byte, error) {
 
 	return data, nil
 }
+
+// FormatDuration converts seconds to MM:SS format
+func FormatDuration(seconds int) string {
+	minutes := seconds / 60
+	secs := seconds % 60
+	return fmt.Sprintf("%d:%02d", minutes, secs)
+}
+
+// VisibilityString converts a boolean public flag to a readable string
+func VisibilityString(public bool) string {
+	if public {
+		return "Public"
+	}
+	return "Private"
+}

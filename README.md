@@ -49,8 +49,7 @@ ytx auth status
 # List playlists
 ytx spotify playlists --limit 10 --json --pretty
 
-# Export playlist to JSON
-ytx spotify export --id <playlist-id> --output mylist.json
+
 
 # Search for tracks
 ytx ytmusic search "Daft Punk Derezzed"
@@ -75,6 +74,22 @@ ytx api post /playlist/create -d '{"name":"My Mix"}'
 ytx api dump
 ```
 
+#### Exporting
+
+```sh
+ytx spotify export --id <playlist-id> --format json --output mylist.json
+ytx spotify export --id <playlist-id> --format csv --save              # Creates {id}_tracks.csv + {id}_metadata.json
+ytx spotify export --id <playlist-id> --format markdown --save         # Creates {id}/README.md + {id}/cover.jpg
+ytx spotify export --id <playlist-id> --format txt --output tracks.txt
+```
+
+__Export formats__:
+
+- json: Full playlist data with track metadata
+- csv: Track list as CSV with separate metadata JSON file
+- markdown: Directory with README.md, track listing, and cover image
+- txt: Simple plain text track list
+
 #### Flags
 
 - `--json` / `--pretty`: Toggle JSON output formatting
@@ -89,10 +104,10 @@ ytx api dump
 | `ytx auth login`  | Upload a `headers_auth.json` to the FastAPI `/auth/upload` endpoint | `ytx auth login ~/Downloads/headers_auth.json` |
 | `ytx auth status` | Check current authentication state (calls `/health`)                | `ytx auth status`                              |
 
-| Command                   | Description                        | Example                                           |
-| ------------------------- | ---------------------------------- | ------------------------------------------------- |
-| `ytx spot[ify] playlists` | List Spotify playlists             | `ytx spotify playlists --limit 10`                |
-| `ytx spot[ify] export`    | Export playlist JSON for debugging | `ytx spotify export --id 4df7... --o mylist.json` |
+| Command                   | Description                                           | Example                                                   |
+| ------------------------- | ----------------------------------------------------- | --------------------------------------------------------- |
+| `ytx spot[ify] playlists` | List Spotify playlists                                | `ytx spotify playlists --limit 10`                        |
+| `ytx spot[ify] export`    | Export playlist (json, csv, markdown, txt)            | `ytx spotify export --id 4df7... --format markdown --save` |
 
 | Feature                     | Description                                    |
 | --------------------------- | ---------------------------------------------- |

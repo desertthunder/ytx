@@ -8,6 +8,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/desertthunder/ytx/internal/formatter"
+	"github.com/desertthunder/ytx/internal/models"
 	"github.com/desertthunder/ytx/internal/server"
 	"github.com/desertthunder/ytx/internal/services"
 	"github.com/desertthunder/ytx/internal/shared"
@@ -91,6 +93,7 @@ func (r *Runner) SpotifyPlaylists(ctx context.Context, cmd *cli.Command) error {
 	useJSON := cmd.Bool("json")
 	pretty := cmd.Bool("pretty")
 	save := cmd.Bool("save")
+	userFilter := cmd.String("user")
 
 	if r.spotify == nil {
 		return fmt.Errorf("%w: Spotify service not initialized", shared.ErrServiceUnavailable)
@@ -110,6 +113,41 @@ func (r *Runner) SpotifyPlaylists(ctx context.Context, cmd *cli.Command) error {
 		} else {
 			return fmt.Errorf("%w: %v", shared.ErrAPIRequest, err)
 		}
+	}
+
+	// Filter by user if specified
+	if userFilter != "" {
+		spotifySvc, ok := r.spotify.(*services.SpotifyService)
+		if !ok {
+			return fmt.Errorf("spotify service type assertion failed")
+		}
+
+		var targetUserID string
+		if userFilter == "me" {
+			user, err := spotifySvc.UserProfile(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to get user profile: %w", err)
+			}
+			targetUserID = user.ID
+			r.logger.Debugf("filtering playlists for current user: %v", targetUserID)
+		} else {
+			targetUserID = userFilter
+			r.logger.Debugf("filtering playlists for user: %v", targetUserID)
+		}
+
+		// Filter playlists by owner
+		var filtered []models.Playlist
+		for _, pl := range playlists {
+			spotifyPl, err := spotifySvc.Playlist(ctx, pl.ID)
+			if err != nil {
+				r.logger.Warnf("failed to get playlist details for %v: %v", pl.ID, err)
+				continue
+			}
+			if spotifyPl.Owner.ID == targetUserID {
+				filtered = append(filtered, pl)
+			}
+		}
+		playlists = filtered
 	}
 
 	if limit > 0 && limit < len(playlists) {
@@ -133,7 +171,11 @@ func (r *Runner) SpotifyPlaylists(ctx context.Context, cmd *cli.Command) error {
 		return r.writeJSON(playlists, pretty)
 	}
 
-	r.writePlain("Found %d playlists:\n\n", len(playlists))
+	if userFilter != "" {
+		r.writePlain("Found %d playlists (filtered by user: %s):\n\n", len(playlists), userFilter)
+	} else {
+		r.writePlain("Found %d playlists:\n\n", len(playlists))
+	}
 	for i, p := range playlists {
 		r.writePlain("%d. %s\n", i+1, p.Name)
 		if p.Description != "" {
@@ -159,6 +201,7 @@ func (r *Runner) SpotifyExport(ctx context.Context, cmd *cli.Command) error {
 	pretty := cmd.Bool("pretty")
 	save := cmd.Bool("save")
 	playlistID := cmd.String("id")
+	format := cmd.String("format")
 
 	if playlistID == "" {
 		return fmt.Errorf("%w: --id flag is required", shared.ErrMissingArgument)
@@ -168,7 +211,7 @@ func (r *Runner) SpotifyExport(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("%w: Spotify service not initialized", shared.ErrServiceUnavailable)
 	}
 
-	r.logger.Infof("exporting spotify playlist %v", playlistID)
+	r.logger.Infof("exporting spotify playlist %v in format %v", playlistID, format)
 
 	export, err := r.spotify.ExportPlaylist(ctx, playlistID)
 	if err != nil {
@@ -185,8 +228,90 @@ func (r *Runner) SpotifyExport(ctx context.Context, cmd *cli.Command) error {
 		}
 	}
 
+	// Handle format-specific export
+	switch format {
+	case "csv":
+		return r.exportCSV(export, outputFile, save)
+	case "markdown":
+		return r.exportMarkdown(ctx, export, outputFile, save)
+	case "txt":
+		return r.exportText(export, outputFile, save)
+	case "json":
+		return r.exportJSON(export, outputFile, save, useJSON, pretty)
+	default:
+		return fmt.Errorf("unsupported format: %s (supported: json, csv, markdown, txt)", format)
+	}
+}
+
+// exportCSV exports a playlist to CSV format with accompanying metadata JSON
+func (r *Runner) exportCSV(export *models.PlaylistExport, filepath string, save bool) error {
+	if filepath == "" && !save {
+		return fmt.Errorf("CSV format requires --save flag or --output flag")
+	}
+
+	result, err := formatter.WriteCSVExport(export, filepath)
+	if err != nil {
+		return err
+	}
+
+	r.logger.Infof("playlist exported to CSV: %v and %v", result.TracksFile, result.MetadataFile)
+	r.writePlain("✓ Playlist exported to:\n")
+	r.writePlain("  Tracks: %s (%d tracks)\n", result.TracksFile, len(export.Tracks))
+	r.writePlain("  Metadata: %s\n", result.MetadataFile)
+
+	return nil
+}
+
+// exportMarkdown exports a playlist to Markdown format with cover image in a directory
+func (r *Runner) exportMarkdown(ctx context.Context, export *models.PlaylistExport, outputDir string, save bool) error {
+	if outputDir == "" && !save {
+		return fmt.Errorf("markdown format requires --save flag or --output flag")
+	}
+
+	var imageURL string
+	spotifySvc, ok := r.spotify.(*services.SpotifyService)
+	if ok {
+		spotifyPl, err := spotifySvc.Playlist(ctx, export.Playlist.ID)
+		if err == nil && len(spotifyPl.Images) > 0 {
+			imageURL = spotifyPl.Images[0].URL
+		}
+	}
+
+	result, err := formatter.WriteMarkdownExport(export, outputDir, imageURL)
+	if err != nil {
+		return err
+	}
+
+	r.logger.Infof("playlist exported to Markdown directory: %v", result.Directory)
+	r.writePlain("✓ Playlist exported to directory: %s\n", result.Directory)
+	for _, file := range result.Files {
+		r.writePlain("  - %s\n", file)
+	}
+
+	return nil
+}
+
+// exportText exports a playlist to plain text format
+func (r *Runner) exportText(export *models.PlaylistExport, outputFile string, save bool) error {
+	if outputFile == "" && !save {
+		return fmt.Errorf("text format requires --save flag or --output flag")
+	}
+
+	filepath, err := formatter.WriteTextExport(export, outputFile)
+	if err != nil {
+		return err
+	}
+
+	r.logger.Infof("playlist exported to text: %v", filepath)
+	r.writePlain("✓ Playlist exported to %s (%d tracks)\n", filepath, len(export.Tracks))
+
+	return nil
+}
+
+// exportJSON exports a playlist to JSON format (legacy behavior)
+func (r *Runner) exportJSON(export *models.PlaylistExport, outputFile string, save bool, useJSON bool, pretty bool) error {
 	if outputFile == "" && (save || !useJSON) {
-		outputFile = fmt.Sprintf("spotify_%s.json", export.Playlist.Name)
+		outputFile = fmt.Sprintf("%s.json", export.Playlist.ID)
 	}
 
 	if outputFile != "" {

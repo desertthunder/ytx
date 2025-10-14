@@ -147,3 +147,41 @@ func TestErrorTypes(t *testing.T) {
 		})
 	})
 }
+
+func TestFormatDuration(t *testing.T) {
+	tests := []struct {
+		seconds  int
+		expected string
+	}{
+		{60, "1:00"},
+		{90, "1:30"},
+		{180, "3:00"},
+		{240, "4:00"},
+		{305, "5:05"},
+		{3599, "59:59"},
+	}
+
+	for _, tt := range tests {
+		result := FormatDuration(tt.seconds)
+		if result != tt.expected {
+			t.Errorf("formatDuration(%d) = %s; want %s", tt.seconds, result, tt.expected)
+		}
+	}
+}
+
+func TestVisibilityString(t *testing.T) {
+	tests := []struct {
+		public   bool
+		expected string
+	}{
+		{true, "Public"},
+		{false, "Private"},
+	}
+
+	for _, tt := range tests {
+		result := VisibilityString(tt.public)
+		if result != tt.expected {
+			t.Errorf("visibilityString(%v) = %s; want %s", tt.public, result, tt.expected)
+		}
+	}
+}
