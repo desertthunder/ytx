@@ -34,6 +34,7 @@ const (
 	FetchUploads
 	CreatePlaylist
 	SearchTracks
+	ExportPlaylist
 )
 
 func (p Phase) String() string {
@@ -64,6 +65,8 @@ func (p Phase) String() string {
 		return "create_playlist"
 	case SearchTracks:
 		return "search_tracks"
+	case ExportPlaylist:
+		return "export_playlist"
 	default:
 		return ""
 	}
@@ -166,5 +169,32 @@ func foundPlaylistUpdate(step, total int, export *models.PlaylistExport) Progres
 		Total:   total,
 		Message: fmt.Sprintf("Found playlist: %s (%d tracks)", export.Playlist.Name, total),
 		Data:    export,
+	}
+}
+
+func exportingPlaylistUpdate(step, total int, name string) ProgressUpdate {
+	return ProgressUpdate{
+		Phase:   ExportPlaylist,
+		Step:    step,
+		Total:   total,
+		Message: fmt.Sprintf("[%d/%d] Exporting: %s...", step, total, name),
+	}
+}
+
+func exportCompletedUpdate(step, total int, name string, filesCount int) ProgressUpdate {
+	return ProgressUpdate{
+		Phase:   ExportPlaylist,
+		Step:    step,
+		Total:   total,
+		Message: fmt.Sprintf("[%d/%d] ✓ %s (%d files)", step, total, name, filesCount),
+	}
+}
+
+func exportFailedUpdate(step, total int, name string, err error) ProgressUpdate {
+	return ProgressUpdate{
+		Phase:   ExportPlaylist,
+		Step:    step,
+		Total:   total,
+		Message: fmt.Sprintf("[%d/%d] ✗ %s: %v", step, total, name, err),
 	}
 }

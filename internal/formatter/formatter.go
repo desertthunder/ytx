@@ -4,6 +4,7 @@ package formatter
 import (
 	"bytes"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,54 @@ import (
 	"github.com/desertthunder/ytx/internal/models"
 	"github.com/desertthunder/ytx/internal/shared"
 )
+
+// CSVExportResult contains the paths of files created by WriteCSVExport
+type CSVExportResult struct {
+	TracksFile   string
+	MetadataFile string
+}
+
+// MarkdownExportResult contains information about files created by WriteMarkdownExport
+type MarkdownExportResult struct {
+	Directory  string
+	Files      []string
+	CoverImage string
+}
+
+// ExportManifest represents a summary of a bulk export operation.
+type ExportManifest struct {
+	Timestamp         string                `json:"timestamp"`
+	Format            string                `json:"format"`
+	TotalPlaylists    int                   `json:"total_playlists"`
+	SuccessfulExports int                   `json:"successful_exports"`
+	FailedExports     int                   `json:"failed_exports"`
+	Exports           []ExportManifestEntry `json:"exports"`
+}
+
+// ExportManifestEntry represents a single playlist export in the manifest.
+type ExportManifestEntry struct {
+	PlaylistID   string   `json:"playlist_id"`
+	PlaylistName string   `json:"playlist_name"`
+	Status       string   `json:"status"`
+	Files        []string `json:"files,omitempty"`
+	Error        string   `json:"error,omitempty"`
+}
+
+// Type assertion helper struct matching tasks.BulkExportResult for JSON unmarshaling
+type BulkExportResult struct {
+	TotalPlaylists    int
+	SuccessfulExports int
+	FailedExports     int
+	Results           []struct {
+		PlaylistID   string
+		PlaylistName string
+		Success      bool
+		Files        []string
+		Error        interface{} // Use interface{} to handle both error objects and strings
+	}
+	OutputDirectory string
+	ManifestPath    string
+}
 
 // ExportToCSV converts a PlaylistExport to CSV format with columns: ID, Title, Artist, Album, Duration, ISRC
 func ExportToCSV(export *models.PlaylistExport) ([]byte, error) {
@@ -94,6 +143,11 @@ func ExportToText(export *models.PlaylistExport) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// ExportToJSON converts a PlaylistExport to JSON format
+func ExportToJSON(export *models.PlaylistExport) ([]byte, error) {
+	return shared.MarshalJSON(export, true)
+}
+
 // DownloadImage downloads an image from the given URL and returns the raw bytes
 func DownloadImage(url string) ([]byte, error) {
 	if url == "" {
@@ -125,12 +179,6 @@ func DownloadImage(url string) ([]byte, error) {
 // ToMetadataJSON generates a JSON representation of playlist metadata (without tracks)
 func ToMetadataJSON(playlist models.Playlist) ([]byte, error) {
 	return shared.MarshalJSON(playlist, true)
-}
-
-// CSVExportResult contains the paths of files created by WriteCSVExport
-type CSVExportResult struct {
-	TracksFile   string
-	MetadataFile string
 }
 
 // WriteCSVExport exports a playlist to CSV format with accompanying metadata JSON file.
@@ -165,13 +213,6 @@ func WriteCSVExport(export *models.PlaylistExport, baseFilepath string) (*CSVExp
 		TracksFile:   tracksFile,
 		MetadataFile: metadataFile,
 	}, nil
-}
-
-// MarkdownExportResult contains information about files created by WriteMarkdownExport
-type MarkdownExportResult struct {
-	Directory  string
-	Files      []string
-	CoverImage string
 }
 
 // WriteMarkdownExport exports a playlist to Markdown format in a dedicated directory.
@@ -244,4 +285,89 @@ func WriteTextExport(export *models.PlaylistExport, filepath string) (string, er
 	}
 
 	return filepath, nil
+}
+
+// WriteJSONExport exports a playlist to JSON format.
+//
+// Defaults to {playlist.ID}.json as the filename.
+func WriteJSONExport(export *models.PlaylistExport, filepath string) (string, error) {
+	if filepath == "" {
+		filepath = fmt.Sprintf("%s.json", export.Playlist.ID)
+	}
+
+	jsonData, err := ExportToJSON(export)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate JSON: %w", err)
+	}
+
+	if err := os.WriteFile(filepath, jsonData, 0644); err != nil {
+		return "", fmt.Errorf("failed to write JSON file: %w", err)
+	}
+
+	return filepath, nil
+}
+
+// WriteBulkExportManifest writes a JSON manifest file summarizing bulk export results.
+// The manifest includes timestamp, format, success/failure counts, and per-playlist details.
+// Accepts any result type with matching structure via JSON marshaling.
+func WriteBulkExportManifest(result any, format string, filepath string) error {
+	// Use JSON marshaling/unmarshaling to convert from any compatible type
+	jsonData, err := shared.MarshalJSON(result, false)
+	if err != nil {
+		return fmt.Errorf("failed to marshal input result: %w", err)
+	}
+
+	var bulkResult BulkExportResult
+	if err := json.Unmarshal(jsonData, &bulkResult); err != nil {
+		return fmt.Errorf("invalid result type for manifest: %w", err)
+	}
+
+	manifest := ExportManifest{
+		Timestamp:         time.Now().UTC().Format(time.RFC3339),
+		Format:            format,
+		TotalPlaylists:    bulkResult.TotalPlaylists,
+		SuccessfulExports: bulkResult.SuccessfulExports,
+		FailedExports:     bulkResult.FailedExports,
+		Exports:           make([]ExportManifestEntry, 0, len(bulkResult.Results)),
+	}
+
+	for _, res := range bulkResult.Results {
+		entry := ExportManifestEntry{
+			PlaylistID:   res.PlaylistID,
+			PlaylistName: res.PlaylistName,
+			Files:        res.Files,
+		}
+
+		if res.Success {
+			entry.Status = "success"
+		} else {
+			entry.Status = "failed"
+			if res.Error != nil {
+				// Convert error (could be string, map, or other types from JSON)
+				if errStr, ok := res.Error.(string); ok {
+					entry.Error = errStr
+				} else if errMap, ok := res.Error.(map[string]interface{}); ok {
+					// Error marshaled as object, extract message
+					if msg, ok := errMap["Error"].(string); ok {
+						entry.Error = msg
+					} else {
+						entry.Error = fmt.Sprintf("%v", res.Error)
+					}
+				} else {
+					entry.Error = fmt.Sprintf("%v", res.Error)
+				}
+			}
+		}
+
+		manifest.Exports = append(manifest.Exports, entry)
+	}
+
+	data, err := shared.MarshalJSON(manifest, true)
+	if err != nil {
+		return fmt.Errorf("failed to marshal manifest: %w", err)
+	}
+	if err := os.WriteFile(filepath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write manifest file: %w", err)
+	}
+	return nil
 }

@@ -99,6 +99,48 @@ func spotifyCommand(r *Runner) *cli.Command {
 				},
 				Action: r.SpotifyExport,
 			},
+			{
+				Name:    "export-all",
+				Aliases: []string{"bulk-export"},
+				Usage:   "Export multiple playlists concurrently",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "config",
+						Aliases: []string{"c"},
+						Usage:   "Path to configuration file",
+						Value:   "config.toml",
+					},
+					&cli.StringFlag{
+						Name:  "ids",
+						Usage: "Comma-separated playlist IDs (default: all user playlists)",
+					},
+					&cli.StringFlag{
+						Name:  "format",
+						Usage: "Export format: json, csv, markdown, txt",
+						Value: "json",
+					},
+					&cli.StringFlag{
+						Name:    "output",
+						Aliases: []string{"o"},
+						Usage:   "Output directory name (default: spotify_export_{epoch})",
+					},
+					&cli.IntFlag{
+						Name:  "workers",
+						Usage: "Number of concurrent workers (max 10)",
+						Value: 5,
+					},
+					&cli.Float64Flag{
+						Name:  "rate-limit",
+						Usage: "API requests per second",
+						Value: 5.0,
+					},
+					&cli.StringFlag{
+						Name:  "user",
+						Usage: "Filter playlists by user ID (default: all, use 'me' for current user)",
+					},
+				},
+				Action: r.SpotifyExportAll,
+			},
 		},
 	}
 }

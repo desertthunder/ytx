@@ -10,6 +10,8 @@ require (
 	github.com/urfave/cli/v3 v3.4.1
 )
 
+require golang.org/x/time v0.14.0
+
 require (
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/charmbracelet/bubbles v0.21.0

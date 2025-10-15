@@ -214,6 +214,62 @@ func TestExporters(t *testing.T) {
 			t.Errorf("JSON missing Name field")
 		}
 	})
+
+	t.Run("ExportToJSON", func(t *testing.T) {
+		export := &models.PlaylistExport{
+			Playlist: models.Playlist{
+				ID:          "test123",
+				Name:        "Test Playlist",
+				Description: "A test playlist",
+				TrackCount:  2,
+				Public:      true,
+			},
+			Tracks: []models.Track{
+				{
+					ID:       "track1",
+					Title:    "Song One",
+					Artist:   "Artist One",
+					Album:    "Album One",
+					Duration: 180,
+					ISRC:     "USRC12345678",
+				},
+				{
+					ID:       "track2",
+					Title:    "Song Two",
+					Artist:   "Artist Two",
+					Album:    "Album Two",
+					Duration: 240,
+					ISRC:     "USRC87654321",
+				},
+			},
+		}
+
+		data, err := ExportToJSON(export)
+		if err != nil {
+			t.Fatalf("ExportToJSON failed: %v", err)
+		}
+
+		output := string(data)
+
+		// Verify playlist metadata
+		if !strings.Contains(output, `"test123"`) {
+			t.Errorf("JSON missing playlist ID")
+		}
+		if !strings.Contains(output, `"Test Playlist"`) {
+			t.Errorf("JSON missing playlist name")
+		}
+
+		// Verify tracks
+		if !strings.Contains(output, `"track1"`) {
+			t.Errorf("JSON missing track1 ID")
+		}
+		if !strings.Contains(output, `"Song One"`) {
+			t.Errorf("JSON missing track1 title")
+		}
+		if !strings.Contains(output, `"USRC12345678"`) {
+			t.Errorf("JSON missing track1 ISRC")
+		}
+	})
 }
 
 func TestDownloadImage(t *testing.T) {
@@ -457,6 +513,219 @@ func TestWriters(t *testing.T) {
 			}
 
 			th.AssertFileExists(t, filepath)
+		})
+	})
+
+	t.Run("WriteJSONExport", func(t *testing.T) {
+		export := &models.PlaylistExport{
+			Playlist: models.Playlist{
+				ID:          "test123",
+				Name:        "Test Playlist",
+				Description: "A test playlist",
+				TrackCount:  2,
+				Public:      true,
+			},
+			Tracks: []models.Track{
+				{
+					ID:       "track1",
+					Title:    "Song One",
+					Artist:   "Artist One",
+					Album:    "Album One",
+					Duration: 180,
+					ISRC:     "USRC12345678",
+				},
+				{
+					ID:       "track2",
+					Title:    "Song Two",
+					Artist:   "Artist Two",
+					Album:    "Album Two",
+					Duration: 240,
+					ISRC:     "USRC87654321",
+				},
+			},
+		}
+
+		t.Run("WithDefaultPath", func(t *testing.T) {
+			tempDir := t.TempDir()
+			originalDir := th.MustGetwd(t)
+			th.MustChdir(t, tempDir)
+			defer th.MustChdir(t, originalDir)
+
+			filepath, err := WriteJSONExport(export, "")
+			if err != nil {
+				t.Fatalf("WriteJSONExport failed: %v", err)
+			}
+
+			if filepath != "test123.json" {
+				t.Errorf("Expected 'test123.json', got '%s'", filepath)
+			}
+
+			th.AssertFileExists(t, filepath)
+
+			content := th.MustReadFile(t, filepath)
+			if !strings.Contains(content, `"test123"`) {
+				t.Errorf("JSON missing playlist ID")
+			}
+			if !strings.Contains(content, `"Test Playlist"`) {
+				t.Errorf("JSON missing playlist name")
+			}
+			if !strings.Contains(content, `"track1"`) {
+				t.Errorf("JSON missing track data")
+			}
+		})
+
+		t.Run("WithCustomPath", func(t *testing.T) {
+			tempDir := t.TempDir()
+			originalDir := th.MustGetwd(t)
+			th.MustChdir(t, tempDir)
+			defer th.MustChdir(t, originalDir)
+
+			filepath, err := WriteJSONExport(export, "my_export.json")
+			if err != nil {
+				t.Fatalf("WriteJSONExport failed: %v", err)
+			}
+
+			if filepath != "my_export.json" {
+				t.Errorf("Expected 'my_export.json', got '%s'", filepath)
+			}
+
+			th.AssertFileExists(t, filepath)
+		})
+	})
+
+	t.Run("WriteBulkExportManifest", func(t *testing.T) {
+		t.Run("SuccessfulExport", func(t *testing.T) {
+			tempDir := t.TempDir()
+			originalDir := th.MustGetwd(t)
+			th.MustChdir(t, tempDir)
+			defer th.MustChdir(t, originalDir)
+
+			// Create a mock bulk export result
+			bulkResult := BulkExportResult{
+				TotalPlaylists:    2,
+				SuccessfulExports: 2,
+				FailedExports:     0,
+				Results: []struct {
+					PlaylistID   string
+					PlaylistName string
+					Success      bool
+					Files        []string
+					Error        interface{}
+				}{
+					{
+						PlaylistID:   "playlist1",
+						PlaylistName: "My Playlist 1",
+						Success:      true,
+						Files:        []string{"playlist1_tracks.csv", "playlist1_metadata.json"},
+						Error:        nil,
+					},
+					{
+						PlaylistID:   "playlist2",
+						PlaylistName: "My Playlist 2",
+						Success:      true,
+						Files:        []string{"playlist2/README.md", "playlist2/cover.jpg"},
+						Error:        nil,
+					},
+				},
+				OutputDirectory: "exports",
+				ManifestPath:    "exports/manifest.json",
+			}
+
+			manifestPath := "manifest.json"
+			err := WriteBulkExportManifest(bulkResult, "csv", manifestPath)
+			if err != nil {
+				t.Fatalf("WriteBulkExportManifest failed: %v", err)
+			}
+
+			th.AssertFileExists(t, manifestPath)
+
+			content := th.MustReadFile(t, manifestPath)
+			if !strings.Contains(content, `"format":"csv"`) && !strings.Contains(content, `"format": "csv"`) {
+				t.Errorf("Manifest missing format field")
+			}
+			if !strings.Contains(content, `"total_playlists":2`) && !strings.Contains(content, `"total_playlists": 2`) {
+				t.Errorf("Manifest missing total_playlists field")
+			}
+			if !strings.Contains(content, `"successful_exports":2`) && !strings.Contains(content, `"successful_exports": 2`) {
+				t.Errorf("Manifest missing successful_exports field")
+			}
+			if !strings.Contains(content, `"playlist1"`) {
+				t.Errorf("Manifest missing playlist1 ID")
+			}
+			if !strings.Contains(content, `"My Playlist 1"`) {
+				t.Errorf("Manifest missing playlist1 name")
+			}
+			if !strings.Contains(content, `"status":"success"`) && !strings.Contains(content, `"status": "success"`) {
+				t.Errorf("Manifest missing success status")
+			}
+		})
+
+		t.Run("WithFailedExports", func(t *testing.T) {
+			tempDir := t.TempDir()
+			originalDir := th.MustGetwd(t)
+			th.MustChdir(t, tempDir)
+			defer th.MustChdir(t, originalDir)
+
+			// Create a mock bulk export result with failures
+			bulkResult := BulkExportResult{
+				TotalPlaylists:    3,
+				SuccessfulExports: 1,
+				FailedExports:     2,
+				Results: []struct {
+					PlaylistID   string
+					PlaylistName string
+					Success      bool
+					Files        []string
+					Error        interface{}
+				}{
+					{
+						PlaylistID:   "playlist1",
+						PlaylistName: "Success Playlist",
+						Success:      true,
+						Files:        []string{"playlist1.json"},
+						Error:        nil,
+					},
+					{
+						PlaylistID:   "playlist2",
+						PlaylistName: "Failed Playlist",
+						Success:      false,
+						Files:        nil,
+						Error:        "authentication failed",
+					},
+					{
+						PlaylistID:   "playlist3",
+						PlaylistName: "Another Failed",
+						Success:      false,
+						Files:        nil,
+						Error:        map[string]interface{}{"Error": "network timeout"},
+					},
+				},
+			}
+
+			manifestPath := "manifest_with_failures.json"
+			err := WriteBulkExportManifest(bulkResult, "markdown", manifestPath)
+			if err != nil {
+				t.Fatalf("WriteBulkExportManifest failed: %v", err)
+			}
+
+			th.AssertFileExists(t, manifestPath)
+
+			content := th.MustReadFile(t, manifestPath)
+			if !strings.Contains(content, `"format":"markdown"`) && !strings.Contains(content, `"format": "markdown"`) {
+				t.Errorf("Manifest missing format field")
+			}
+			if !strings.Contains(content, `"failed_exports":2`) && !strings.Contains(content, `"failed_exports": 2`) {
+				t.Errorf("Manifest missing failed_exports count")
+			}
+			if !strings.Contains(content, `"status":"failed"`) && !strings.Contains(content, `"status": "failed"`) {
+				t.Errorf("Manifest missing failed status")
+			}
+			if !strings.Contains(content, `"authentication failed"`) {
+				t.Errorf("Manifest missing error message")
+			}
+			if !strings.Contains(content, `"network timeout"`) {
+				t.Errorf("Manifest missing error message from map")
+			}
 		})
 	})
 }

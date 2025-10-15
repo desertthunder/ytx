@@ -71,6 +71,31 @@ type DumpResult struct {
 	Errors         []EndpointResult // Failed endpoint fetches
 }
 
+// PlaylistExportJob represents a single playlist to be exported in a bulk operation.
+type PlaylistExportJob struct {
+	PlaylistID string // Playlist identifier
+	Export     *models.PlaylistExport
+}
+
+// PlaylistExportResult contains the result of exporting a single playlist.
+type PlaylistExportResult struct {
+	PlaylistID   string   // Playlist identifier
+	PlaylistName string   // Playlist name for display
+	Success      bool     // Whether export succeeded
+	Files        []string // Paths to created files
+	Error        error    // Error if export failed
+}
+
+// BulkExportResult contains the results of a bulk export operation.
+type BulkExportResult struct {
+	TotalPlaylists    int                    // Total number of playlists to export
+	SuccessfulExports int                    // Number of successful exports
+	FailedExports     int                    // Number of failed exports
+	Results           []PlaylistExportResult // Individual export results
+	OutputDirectory   string                 // Base output directory
+	ManifestPath      string                 // Path to export manifest JSON
+}
+
 type DumpData struct {
 	Health         any   `json:"health"`
 	Playlists      any   `json:"playlists,omitempty"`
@@ -221,9 +246,7 @@ func (e *PlaylistEngine) Run(ctx context.Context, srcID string, progress chan<- 
 	result.SourcePlaylist = srcPlaylist
 	result.TotalTracks = total
 
-	// Cache all source tracks automatically
 	e.cacheTracks("spotify", srcPlaylist.Tracks)
-
 	e.sendProgress(progress, foundPlaylistUpdate(1, 1, srcPlaylist))
 	e.sendProgress(progress, searchTracksUpdate(0, total, nil))
 
@@ -242,7 +265,6 @@ func (e *PlaylistEngine) Run(ctx context.Context, srcID string, progress chan<- 
 
 		if err == nil {
 			successCount++
-			// Cache matched YouTube track automatically
 			e.cacheTrack("youtube", ytTrack.ID, *ytTrack)
 		}
 	}

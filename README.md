@@ -76,11 +76,22 @@ ytx api dump
 
 #### Exporting
 
+__Single playlist export__:
+
 ```sh
 ytx spotify export --id <playlist-id> --format json --output mylist.json
 ytx spotify export --id <playlist-id> --format csv --save              # Creates {id}_tracks.csv + {id}_metadata.json
 ytx spotify export --id <playlist-id> --format markdown --save         # Creates {id}/README.md + {id}/cover.jpg
 ytx spotify export --id <playlist-id> --format txt --output tracks.txt
+```
+
+__Bulk playlist export__:
+
+```sh
+ytx spotify export-all --format markdown                                # Export all user playlists
+ytx spotify export-all --ids id1,id2,id3 --format csv                  # Export specific playlists
+ytx spotify export-all --format json --user me                          # Export playlists owned by current user
+ytx spotify export-all --workers 10 --output my_backup                 # Custom concurrency & directory
 ```
 
 __Export formats__:
@@ -89,6 +100,15 @@ __Export formats__:
 - csv: Track list as CSV with separate metadata JSON file
 - markdown: Directory with README.md, track listing, and cover image
 - txt: Simple plain text track list
+
+__Bulk export features__:
+
+- Concurrent exports with configurable worker pool (default: 5 workers)
+- Rate limiting to respect API limits (default: 5 req/sec)
+- Progress tracking with real-time status updates
+- Export manifest (`export_manifest.json`) with success/failure summary
+- Filter by playlist owner (`--user me` or `--user <user-id>`)
+- Graceful handling of partial failures
 
 #### Flags
 
@@ -103,11 +123,6 @@ __Export formats__:
 | ----------------- | ------------------------------------------------------------------- | ---------------------------------------------- |
 | `ytx auth login`  | Upload a `headers_auth.json` to the FastAPI `/auth/upload` endpoint | `ytx auth login ~/Downloads/headers_auth.json` |
 | `ytx auth status` | Check current authentication state (calls `/health`)                | `ytx auth status`                              |
-
-| Command                   | Description                                           | Example                                                   |
-| ------------------------- | ----------------------------------------------------- | --------------------------------------------------------- |
-| `ytx spot[ify] playlists` | List Spotify playlists                                | `ytx spotify playlists --limit 10`                        |
-| `ytx spot[ify] export`    | Export playlist (json, csv, markdown, txt)            | `ytx spotify export --id 4df7... --format markdown --save` |
 
 | Feature                     | Description                                    |
 | --------------------------- | ---------------------------------------------- |
@@ -147,6 +162,14 @@ __Export formats__:
 
 ### v0.4
 
+| Command                      | Description                                                   | Example                                                    |
+| ---------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------- |
+| `ytx spot[ify] playlists`    | List Spotify playlists                                        | `ytx spotify playlists --limit 10`                         |
+| `ytx spot[ify] export`       | Export single playlist (json, csv, markdown, txt)             | `ytx spotify export --id 4df7... --format markdown --save` |
+| `ytx spot[ify] export-all`   | Bulk export multiple playlists concurrently with progress     | `ytx spotify export-all --format markdown --workers 10`    |
+
+### v0.5
+
 | Feature       | Description                                  |
 | ------------- | -------------------------------------------- |
 | `ytx doctor`  | Runs health checks against FastAPI endpoints |
@@ -156,7 +179,7 @@ __Export formats__:
     - Application shows "no match" when there should be an error or warning about the proxy server's health & status
 - Make help view with key binding implementation more composable
 
-### v0.5
+### v0.6
 
 | Feature   | Description                                  |
 | --------- | -------------------------------------------- |
@@ -174,7 +197,7 @@ __Export formats__:
 - Transfer confirmation workflow
 - Integration with existing services and tasks
 
-### v0.6
+### v0.7
 
 | Route                   | Method | Description                           |
 | ----------------------- | ------ | ------------------------------------- |
@@ -186,7 +209,7 @@ __Export formats__:
 - MigrationJob persistence across requests
 - Results page with matched/failed tracks breakdown
 
-### v0.7
+### v0.8
 
 | Route                       | Method | Description                    |
 | --------------------------- | ------ | ------------------------------ |
@@ -199,7 +222,7 @@ __Export formats__:
 - Automatic token refresh on expiration
 - Auth status display in navigation
 
-### v0.8
+### v0.9
 
 | Route                      | Method | Description                                  |
 | -------------------------- | ------ | -------------------------------------------- |
@@ -215,11 +238,9 @@ __Export formats__:
 - Generated headers_auth.json download or server-side save
 - Integration with existing YouTube setup command logic
 
-### v0.9
+### v1.0+
 
 Kube
-
-### v1.0+
 
 | Command                                                         | Description                                             | Example                                 |
 | --------------------------------------------------------------- | ------------------------------------------------------- | --------------------------------------- |

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/desertthunder/ytx/internal/formatter"
@@ -13,6 +14,7 @@ import (
 	"github.com/desertthunder/ytx/internal/server"
 	"github.com/desertthunder/ytx/internal/services"
 	"github.com/desertthunder/ytx/internal/shared"
+	"github.com/desertthunder/ytx/internal/tasks"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/oauth2"
 )
@@ -310,22 +312,18 @@ func (r *Runner) exportText(export *models.PlaylistExport, outputFile string, sa
 
 // exportJSON exports a playlist to JSON format (legacy behavior)
 func (r *Runner) exportJSON(export *models.PlaylistExport, outputFile string, save bool, useJSON bool, pretty bool) error {
-	if outputFile == "" && (save || !useJSON) {
-		outputFile = fmt.Sprintf("%s.json", export.Playlist.ID)
-	}
+	if outputFile != "" || save {
+		if outputFile == "" {
+			outputFile = fmt.Sprintf("%s.json", export.Playlist.ID)
+		}
 
-	if outputFile != "" {
-		data, err := shared.MarshalJSON(export, true)
+		filepath, err := formatter.WriteJSONExport(export, outputFile)
 		if err != nil {
-			return fmt.Errorf("failed to marshal export: %w", err)
-		}
-		if err := os.WriteFile(outputFile, data, 0644); err != nil {
-			return fmt.Errorf("failed to write file: %w", err)
+			return err
 		}
 
-		r.logger.Infof("playlist exported to %v with %v tracks", outputFile, len(export.Tracks))
-
-		r.writePlain("✓ Playlist exported to %s\n", outputFile)
+		r.logger.Infof("playlist exported to %v with %v tracks", filepath, len(export.Tracks))
+		r.writePlain("✓ Playlist exported to %s\n", filepath)
 		r.writePlain("  Playlist: %s\n", export.Playlist.Name)
 		r.writePlain("  Tracks: %d\n", len(export.Tracks))
 		return nil
@@ -475,4 +473,159 @@ func (r *Runner) handleSpotifyAuthError(ctx context.Context, err error, cmd *cli
 	r.writePlainln("✓ Successfully reauthenticated. Retrying operation...\n")
 
 	return true, nil
+}
+
+// SpotifyExportAll exports multiple playlists concurrently using a worker pool.
+func (r *Runner) SpotifyExportAll(ctx context.Context, cmd *cli.Command) error {
+	if r.spotify == nil {
+		return fmt.Errorf("%w: Spotify service not initialized", shared.ErrServiceUnavailable)
+	}
+
+	if r.engine == nil {
+		return fmt.Errorf("%w: Playlist engine not initialized", shared.ErrServiceUnavailable)
+	}
+
+	format := cmd.String("format")
+	outputDir := cmd.String("output")
+	idsStr := cmd.String("ids")
+	workers := cmd.Int("workers")
+	rateLimit := cmd.Float64("rate-limit")
+	userFilter := cmd.String("user")
+
+	playlistIDs := []string{}
+	if idsStr != "" {
+		for id := range strings.SplitSeq(idsStr, ",") {
+			id = strings.TrimSpace(id)
+			if id != "" {
+				playlistIDs = append(playlistIDs, id)
+			}
+		}
+	} else {
+		r.writePlain("→ Fetching playlist list...\n")
+		playlists, err := r.spotify.GetPlaylists(ctx)
+		if err != nil {
+			if reauthed, authErr := r.handleSpotifyAuthError(ctx, err, cmd); reauthed {
+				if authErr != nil {
+					return authErr
+				}
+				if playlists, err = r.spotify.GetPlaylists(ctx); err != nil {
+					return fmt.Errorf("%w: %v", shared.ErrAPIRequest, err)
+				}
+			} else {
+				return fmt.Errorf("%w: %v", shared.ErrAPIRequest, err)
+			}
+		}
+
+		if userFilter != "" {
+			spotifySvc, ok := r.spotify.(*services.SpotifyService)
+			if !ok {
+				return fmt.Errorf("spotify service type assertion failed")
+			}
+
+			var targetUserID string
+			if userFilter == "me" {
+				user, err := spotifySvc.UserProfile(ctx)
+				if err != nil {
+					return fmt.Errorf("failed to get user profile: %w", err)
+				}
+				targetUserID = user.ID
+			} else {
+				targetUserID = userFilter
+			}
+
+			var filtered []models.Playlist
+			for _, pl := range playlists {
+				spotifyPl, err := spotifySvc.Playlist(ctx, pl.ID)
+				if err != nil {
+					r.logger.Warnf("failed to get playlist details for %v: %v", pl.ID, err)
+					continue
+				}
+				if spotifyPl.Owner.ID == targetUserID {
+					filtered = append(filtered, pl)
+				}
+			}
+			playlists = filtered
+		}
+
+		for _, pl := range playlists {
+			playlistIDs = append(playlistIDs, pl.ID)
+		}
+	}
+
+	if len(playlistIDs) == 0 {
+		return fmt.Errorf("no playlists to export")
+	}
+
+	r.writePlain("→ Preparing to export %d playlists in %s format\n\n", len(playlistIDs), format)
+
+	progress := make(chan tasks.ProgressUpdate, 100)
+	done := make(chan *tasks.BulkExportResult)
+	errs := make(chan error, 1)
+
+	var getCoverImage func(context.Context, string) (string, error)
+	if format == "markdown" {
+		spotifySvc, ok := r.spotify.(*services.SpotifyService)
+		if ok {
+			getCoverImage = func(ctx context.Context, playlistID string) (string, error) {
+				pl, err := spotifySvc.Playlist(ctx, playlistID)
+				if err != nil || len(pl.Images) == 0 {
+					return "", fmt.Errorf("no image available")
+				}
+				return pl.Images[0].URL, nil
+			}
+		}
+	}
+
+	go func() {
+		result, err := r.engine.BulkExport(ctx, progress, r.spotify, playlistIDs, tasks.BulkExportOpts{
+			Format:        format,
+			OutputDir:     outputDir,
+			NumWorkers:    workers,
+			RateLimit:     rateLimit,
+			GetCoverImage: getCoverImage,
+		})
+		if err != nil {
+			errs <- err
+			return
+		}
+		done <- result
+	}()
+
+	for {
+		select {
+		case update := <-progress:
+			r.writePlain("%s\n", update.Message)
+		case result := <-done:
+			r.writePlain("\n")
+			r.writePlain("✓ Bulk export complete!\n")
+			r.writePlain("  Total playlists: %d\n", result.TotalPlaylists)
+			r.writePlain("  Successful: %d\n", result.SuccessfulExports)
+			r.writePlain("  Failed: %d\n", result.FailedExports)
+			r.writePlain("  Output directory: %s\n", result.OutputDirectory)
+			r.writePlain("  Manifest: %s\n\n", result.ManifestPath)
+
+			if result.FailedExports > 0 {
+				r.writePlain("Failed exports:\n")
+				for _, res := range result.Results {
+					if !res.Success {
+						r.writePlain("  ✗ %s: %v\n", res.PlaylistName, res.Error)
+					}
+				}
+			}
+
+			if result.SuccessfulExports == 0 {
+				return fmt.Errorf("all exports failed")
+			}
+
+			if result.FailedExports > 0 {
+				return fmt.Errorf("partial success: %d/%d exports failed", result.FailedExports, result.TotalPlaylists)
+			}
+
+			return nil
+		case err := <-errs:
+			return fmt.Errorf("bulk export failed: %w", err)
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 }
